@@ -1,0 +1,6 @@
+{ "_id" : { "$oid" : "547d9aa1fbf974bb014aa05b" }, "matchId" : "190482", "playerId" : 58845, "bidInfo" : [ { "FBID" : "125487965", "bidAmount" : 50 }, { "FBID" : "1254879", "bidAmount" : 40 }, { "FBID" : "125487925", "bidAmount" : 10 } ] }
+{ "_id" : { "$oid" : "547d9b7dfbf974bb014aa05c" }, "matchId" : "190482", "playerId" : 3618, "bidInfo" : [ { "FBID" : "225487925", "bidAmount" : 10 }, { "FBID" : "2254879251", "bidAmount" : 70 }, { "FBID" : "2254879252", "bidAmount" : 80 } ] }
+{ "_id" : { "$oid" : "54802a440029a82a4b76f07a" }, "matchId" : null, "playerId" : 3618, "bidInfo" : [ { "FBID" : "2254879252", "bidAmount" : 80 } ] }
+{ "_id" : { "$oid" : "548173836ec5ee8b7f30e11a" }, "matchId" : "190482", "playerId" : 22859, "bidInfo" : [ { "FBID" : "2254879252", "bidAmount" : 80 }, { "FBID" : "2254879252", "bidAmount" : 70 }, { "FBID" : "2254879252", "bidAmount" : 90 } ] }
+{ "_id" : { "$oid" : "548540dac36a2bf94c90ecca" }, "matchId" : "21", "playerId" : 58846, "bidInfo" : [ { "FBID" : "122345678", "bidAmount" : 60 }, { "FBID" : "22345678", "bidAmount" : 100 }, { "FBID" : "22345678", "bidAmount" : 90 } ] }
+{ "_id" : { "$oid" : "54869a1ae2ec43d8d3af90d4" }, "bidInfo" : [ { "FBID" : "22345678", "bidAmount" : 100 }, { "FBID" : "22345678", "bidAmount" : 90 } ], "matchId" : "21", "playerId" : 58846 }

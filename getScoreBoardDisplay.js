@@ -38,9 +38,19 @@ chat_room.sockets.on("connection",function(socket){
 		});
 	}
 	// setInterval(updateScorecard,10000)
+	function dS(){
+		client1.get("scoreboard_data",function(err,matches){
+			var matches = JSON.parse(matches);
+			console.log(" match data is ")
+			console.log(matches)
+			socket.emit("scoreboard",matches[0]);
+		})
+	}
+	dS();
 	socket.on("getFantasyPoints",function(matchId){
 		console.log("match id is " + matchId)
 		cricApi.getFantasyPoints(matchId,function(fPoints){
+			// console.log(fPoints)
 			socket.emit("fantasyPoints",fPoints)
 		})
 	})

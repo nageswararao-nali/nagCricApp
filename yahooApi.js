@@ -14,7 +14,7 @@ var chat_room = require('socket.io')(server);
 var redis = require('redis');
 var client1 = redis.createClient();
 var Leaderboard = require('leaderboard');
-server.listen(3000);
+server.listen(3010);
 app.use(express.static(__dirname + '/views/images'));
 app.get("/",function(req,res){
 	yahooHelper.getMatches()
@@ -38,9 +38,9 @@ app.get("/updatePlayerOtherInfo",function(req,res){
 	// yahooHelper.getPlayerOtherInfo({"otherInfo.cricPlayerUrl" : "http://www.espncricinfo.comundefined"});
 	yahooHelper.getPlayerOtherInfo({playerId:3852});
 })
-app.get("/getPlayerStatInfo",function(req,res){
-
-	yahooHelper.getPlayerStatInfo({});
+app.get("/getPlayerStatInfo/:playerId",function(req,res){
+	var playerId = req.params.playerId;
+	yahooHelper.getPlayerStatInfo({playerId:playerId});
 })
 app.get("/getMaidens",function(req,res){
 	yahooHelper.getMaidens();
@@ -122,9 +122,9 @@ function lTest(){
 			console.log(resu)
 	})*/
 }
-nag.rank("abc18",function(err,rank){
+/*nag.rank("abc18",function(err,rank){
 	console.log("rank of abc18 is " + rank)
-})
+})*/
 /*rTest();
 function rTest(){
 	nag.list(function(err,result){

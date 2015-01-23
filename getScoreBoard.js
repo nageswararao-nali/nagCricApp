@@ -13,8 +13,8 @@ var server = http.createServer(app)
 var chat_room = require('socket.io')(server);
 var redis = require('redis');
 var client1 = redis.createClient();
-server.listen(3003);
-app.use("views", express.static(__dirname + '/views'));
+// server.listen(3003);
+/*app.use("views", express.static(__dirname + '/views'));
 app.use("/scripts", express.static(__dirname + '/scripts/js'));
 app.use("/images", express.static(__dirname + '/views/images'));
 // app.use(session({secret : 'dsflkjdk34343'}));
@@ -26,20 +26,13 @@ app.get("/",function(req,res){
 	res.render("index.html");
 })
 chat_room.sockets.on("connection",function(socket){
-	function updateScorecard(){
-		cricApi.getLiveScorecard(function(match_full_info){
-			// console.log(match_full_info[0])
-			client1.set("scoreboard_data",JSON.stringify(match_full_info));
-			socket.emit("scoreboard",match_full_info[0]);
-			
-		});
-	}
-	setInterval(updateScorecard,2000)
+	
 })
 
-/*app.get("/",function(req,res){
+
+app.get("/",function(req,res){
 	yahooHelper.getMatches()
-})*/
+})
 app.get("/getUpcomingSeries",function(req,res){
 	yahooHelper.getUpcomingSeriesMatches()
 })
@@ -114,8 +107,16 @@ app.get("/getUpdatePlayerOtherInfo",function(req,res){
 // get player stats and update maidens
 app.get("/getPlayerStatInfoMaidens",function(req,res){
 	cricApi.getPlayerStatInfo({});
-})
+})*/
 
 
 
-
+function updateScorecard(){
+	cricApi.getLiveScorecard(function(match_full_info){
+		// console.log(match_full_info[0])
+		client1.set("scoreboard_data",JSON.stringify(match_full_info));
+		// socket.emit("scoreboard",match_full_info[0]);
+		
+	});
+}
+setInterval(updateScorecard,2000)

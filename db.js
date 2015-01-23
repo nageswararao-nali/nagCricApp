@@ -6,7 +6,7 @@ mongoose.connect('mongodb://localhost/mydatabase',function(err, db){
 		console.log(db)
 });
 
-exports.Match_Shedule = mongoose.model('Match_Shedule' , {
+exports.Match_Shedule = mongoose.model('MatchSchedule' , {
 		"matchId" : Number,
 		"otherInfo" : Object,
 		"mtype" : String,
@@ -16,10 +16,11 @@ exports.Match_Shedule = mongoose.model('Match_Shedule' , {
 		"StartDate" : Date,
 		"EndDate" : Date,
 		"team1" : Object,
-		"team2" : Object
+		"team2" : Object,
+		"matchStatus" : String
 
-	})
-exports.Team_Info = mongoose.model('Team_Info' , {
+	},"MatchSchedule")
+exports.Team_Info = mongoose.model('TeamInfo' , {
 		"teamId" : Number,
 		"teamName" : String,
 		"teamShortName" : String,
@@ -32,8 +33,8 @@ exports.Team_Info = mongoose.model('Team_Info' , {
         "teamLargeRoundFlagPath" : String,
         "players" : Array
 
-	})
-exports.Player_Profile = mongoose.model('Player_Profile' , {
+	},"TeamInfo")
+exports.Player_Profile = mongoose.model('PlayerProfile' , {
 		"playerId" : Number,
 		"pic_url" : String,
 		"image" : String,
@@ -46,20 +47,20 @@ exports.Player_Profile = mongoose.model('Player_Profile' , {
 		"batting_info" : Object,
 		"bowling_info" : Object,
 		"approved" : Number // 0-non,1-level1 approve,2-need to update,3-approved
-	})
-exports.Player_Profile_Updation = mongoose.model('Player_Profile_Updation' , {
+	},"PlayerProfile")
+exports.Player_Profile_Updation = mongoose.model('PlayerProfileUpdation' , {
 		"playerId" : Number,
 		"otherInfo" : Object,
 		"updated" : Number // 0-non,1-updated
-	},"Player_Profile_Updation")
+	},"PlayerProfileUpdation")
 exports.MatchPlayers = mongoose.model('MatchPlayers' , {
 		"matchId" : Number,
 		"teams" : Array
-})
+},"MatchPlayers")
 exports.MatchScoreCard = mongoose.model('MatchScoreCard' , {
 		"matchId" : Number,
 		"scorecard" : Object
-})
+},"MatchScoreCard")
 exports.News = mongoose.model('News' , {
 		"newsId" : String,
 		"pubDate" : String,
@@ -67,13 +68,13 @@ exports.News = mongoose.model('News' , {
 		"title" : String,
 		"description" : String,
 		"content" : String
-})
-exports.Player_Bid_Info = mongoose.model( 'Player_Bid_Info',{
-         "matchId": String,
+},"News")
+exports.Player_Bid_Info = mongoose.model( 'PlayerBidInfo',{
+         "matchId": Number,
          "playerId" : Number,
          "bidInfo" : Array,
          "fantasyPoints": Array
-},"Player_Bid_Info");
+},"PlayerBidInfo");
 exports.Notifications = mongoose.model( 'Notifications',{
          "user": String,
          "message" : String,
@@ -89,7 +90,22 @@ var userSchema = new Schema({
         deviceToken:String,
         EMAIL : String,
         Credits : Number,
-        FriendsList : Array
+        FriendsList : Array,
+        CreditsInfo : Array,
+        fantasyPoints : Array
 });
- var userSchemacol = "userSchema"
-exports.userSchema = mongoose.model( 'userSchema', userSchema, userSchemacol );
+ var userSchemacol = "UserSchema"
+exports.userSchema = mongoose.model('UserSchema', userSchema, userSchemacol );
+exports.MatchFollowers = mongoose.model('MatchFollowers',{
+         "matchId": Number,
+         "users" : Array,
+         "createDate" : Date,
+},"MatchFollowers");
+exports.LeaguesInfo = mongoose.model('LeaguesInfo',{
+         leagueName : String, 
+         matchId : Number, 
+         createdBy : String,
+         leagueType : String, 
+         users : Array,
+         InviteLeague : Array,
+},"LeaguesInfo");

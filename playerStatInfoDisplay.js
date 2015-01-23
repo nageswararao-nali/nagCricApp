@@ -13,7 +13,7 @@ var server = http.createServer(app)
 var chat_room = require('socket.io')(server);
 var redis = require('redis');
 var client1 = redis.createClient();
-server.listen(3003);
+server.listen(3002);
 app.use("views", express.static(__dirname + '/views'));
 app.use("/scripts", express.static(__dirname + '/scripts/js'));
 app.use("/images", express.static(__dirname + '/views/images'));
@@ -27,6 +27,9 @@ app.get("/",function(req,res){
 })
 app.get("/getStat",function(req,res){
 	res.render("stat.html");
+})
+app.get("/getStatLevel2",function(req,res){
+	res.render("statLevel2.html");
 })
 chat_room.sockets.on("connection",function(socket){
 	socket.on("getPlayersList",function(country){
@@ -52,7 +55,7 @@ chat_room.sockets.on("connection",function(socket){
 			socket.emit("getPlayersCountryList",playerList)
 		})
 	})
-
+	
 	socket.on("getPlayerStat",function(playerId){
 		console.log(playerId)
 		yahooHelper.getStats(playerId,function(stat_info){
@@ -69,6 +72,35 @@ chat_room.sockets.on("connection",function(socket){
 			yahooHelper.getPlayerStatInfo({playerId:playerId});
 		})*/
 		console.log(msg)
+	})
+	socket.on("getPlayersCountryListLevel2",function(message){
+		yahooHelper.getPlayersCountryListLevel2(function(countryList){
+			console.log(countryList)
+			socket.emit("getPlayersCountryListLevel2",countryList)
+		})
+	})
+	socket.on("getPlayersListLevel2",function(country){
+		console.log("country === " + country)
+		yahooHelper.getPlayersListLevel2(country,function(playerList){
+			socket.emit("getPlayersListLevel2",playerList)
+		})
+	})
+	socket.on("getPlayerStatLevel2",function(playerId){
+		console.log(playerId);
+		playerInfo = {};
+		yahooHelper.getStats(playerId,function(stat_info){
+			playerInfo.stat_info = stat_info;
+			yahooHelper.getUpdatedOtherInfoLevel2(playerId,function(otherInfo){
+				playerInfo.otherInfo = otherInfo;
+				socket.emit("playerStatLevel2",playerInfo)
+			})
+		})
+	})
+	socket.on("playerConfirm",function(playerId){
+		yahooHelper.updatePlayerOtherInfoConfirm(playerId,function(playerId){
+			yahooHelper.getPlayerStatInfo({playerId:playerId});
+			socket.emit("playerConfirm","success")
+		})
 	})
 	
 })

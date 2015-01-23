@@ -72,10 +72,10 @@
 		var locc = loc[4];
 		// console.log(locc);
 		// console.log("---" + loc + "---")
-		var socket = io.connect("http://localhost:3002");
+		var socket = io.connect("54.169.3.18:3002");
 		// socket.emit("getPlayersList","");
-		socket.emit("getPlayersCountryList","");
-		socket.on("getPlayersList",function(playerList){
+		socket.emit("getPlayersCountryListLevel2","");
+		socket.on("getPlayersListLevel2",function(playerList){
 			console.log("in on")
 			console.log(playerList.length)
 			var list = "<ul>";
@@ -85,7 +85,7 @@
 			list = list + "</ul>";
 			$(".left_side").html(list);
 		});
-		socket.on("getPlayersCountryList",function(playerCountry){
+		socket.on("getPlayersCountryListLevel2",function(playerCountry){
 			console.log("in on")
 			console.log(playerCountry.length)
 			console.log(playerCountry)
@@ -103,6 +103,9 @@
 		socket.on("playerApproved",function(playerCountry){
 			alert("player approved")
 		});
+		socket.on("playerConfirm",function(playerCountry){
+			alert("player confirmed")
+		});
 		/*$("#getStat").click(function(){
 			var player_name = $("#player_name").val()
 			socket.emit("getPlayerStat",player_name)
@@ -112,7 +115,8 @@
 			console.log("in selector")
 			alert($(this).attr("data"))
 		})
-		socket.on("playerStat",function(stat_info){
+		socket.on("playerStatLevel2",function(playerInfo){
+			var stat_info = playerInfo.stat_info;
 			var stat_content = "";
 			console.log(stat_info.length)
 			for(var i=0;i<stat_info.length;i++){
@@ -142,7 +146,7 @@
 					
 				}
 				bowling_table = bowling_table + bowling_tr + "</table>";
-				stat_content = stat_content + bowling_table + "</div><input type='button' name='player_ok_" + i + "' class='player_approve' id='player_approve_" + i + "' value='Approve' onClick=playerApprove(" + stat_info[i].playerId + ")><input type='button' name='player_ok_" + i + "' class='player_update' id='player_ok_" + i + "' value='Update' onClick=getId(" + stat_info[i].playerId + ")><input type='text' style='margin-right:20px;float:right' name='player_ok_text_" + i + "' class='player_ok' id='player_ok_text_" + stat_info[i].playerId + "'>";
+				stat_content = stat_content + bowling_table + "</div><input type='button' name='player_ok_" + i + "' class='player_approve' id='player_approve_" + i + "' value='Confirm' onClick=playerConfirm(" + stat_info[i].playerId + ")>";
 				// $("#test").html('<p>' + msg + '</p>');
 			// }	
 				console.log("---------------------------")
@@ -150,15 +154,17 @@
 			
 			$(".right_side").html(stat_content);
 			// console.log(stat_info)
+			console.log(playerInfo.otherInfo.otherInfo.cricPlayerUrl)
+			$(".right_side_down").html(playerInfo.otherInfo.otherInfo.cricPlayerUrl);
 		})
 	})
-	var socket = io.connect("http://localhost:3002");
+	var socket = io.connect("54.169.3.18:3002");
 	function getId(pid){
 		if($("#player_ok_text_"+pid).val() != ""){
 			var playerOtherInfo = {};
 			playerOtherInfo.pid = pid;
 			playerOtherInfo.purl = $("#player_ok_text_"+pid).val();
-			var socket = io.connect("http://localhost:3002");
+			var socket = io.connect("54.169.3.18:3002");
 			socket.emit("updatePlayerOtherInfo",playerOtherInfo)
 		}else{
 			alert("Please Enter Player URL")
@@ -167,15 +173,18 @@
 	function playerApprove(pid){
 		socket.emit("playerApprove",pid)
 	}
+	function playerConfirm(pid){
+		socket.emit("playerConfirm",pid)
+	}
 	/*function playerNeedUpdate(pid){
 		socket.emit("playerNeedUpdate",pid)
 	}*/
 	function getStats(pid){
-		socket.emit("getPlayerStat",pid)
+		socket.emit("getPlayerStatLevel2",pid)
 	}
 	function getCountryPlayers(elm){
 		// alert(elm.value)
-		socket.emit("getPlayersList",elm.value)
+		socket.emit("getPlayersListLevel2",elm.value)
 	}
 	</script>
 </head>
@@ -189,9 +198,11 @@
 		</form>
  -->
  <div class="main">
+ <div class="right_side_down" style="margin-left:410px"></div><br /><br />
  	<div class="top_side"></div>
  	<div class="left_side"></div>
  	<div class="right_side"></div>
+ 	
  </div>
 	</body>
 </html>

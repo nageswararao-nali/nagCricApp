@@ -13,8 +13,8 @@ var server = http.createServer(app)
 var chat_room = require('socket.io')(server);
 var redis = require('redis');
 var client1 = redis.createClient();
-server.listen(3004);
-app.use("views", express.static(__dirname + '/views'));
+// server.listen(3004);
+/*app.use("views", express.static(__dirname + '/views'));
 app.use("/scripts", express.static(__dirname + '/scripts/js'));
 app.use("/images", express.static(__dirname + '/views/images'));
 // app.use(session({secret : 'dsflkjdk34343'}));
@@ -36,9 +36,9 @@ chat_room.sockets.on("connection",function(socket){
 	setInterval(updateScorecard,10000)
 })
 
-/*app.get("/",function(req,res){
+app.get("/",function(req,res){
 	yahooHelper.getMatches()
-})*/
+})
 app.get("/getUpcomingSeries",function(req,res){
 	yahooHelper.getUpcomingSeriesMatches()
 })
@@ -114,10 +114,10 @@ app.get("/getUpdatePlayerOtherInfo",function(req,res){
 app.get("/getPlayerStatInfoMaidens",function(req,res){
 	cricApi.getPlayerStatInfo({});
 })
+*/
 
 
-
-client1.get("scoreboard_data",function(err,reply){
+/*client1.get("scoreboard_data",function(err,reply){
 	if(err)
 		console.log(err)
 	else{
@@ -128,55 +128,138 @@ client1.get("scoreboard_data",function(err,reply){
 			console.log(match_full_info[i])
 			updateMatchFantasyPoints(match_full_info[i])
 		}
-		/*for(var prop in reply)
-			console.log(prop + " ====== " + reply[prop])*/
+		
 	}
 	
 	// console.log(response)
 	
-})
-function updateMatchFantasyPoints(match_score_info){
+})*/
+/*client1.smembers("live_matches",function(er,liveMatches){
+	if(er)
+		console.log("error in getting live matches")
+	else{
+		console.log(liveMatches)
+		var i=0,n=liveMatches.length;
+		function matchLoop(i){
+			console.log("in for")
+			console.log(liveMatches[i])
+			client1.get("match_day_" + liveMatches[i],function(err2,fPIndex){
+				if(err2)
+					console.log("error in getting findex")
+				else{
+					console.log("findex " + fPIndex)
+					console.log("scoreboard_" + liveMatches[i] + "_day_" + fPIndex)
+					client1.get("scoreboard_" + liveMatches[i] + "_day_" + fPIndex,function(err1,scoreboard){
+						scoreboard = JSON.parse(scoreboard) 
+						console.log(scoreboard)
+						updateMatchFantasyPoints(scoreboard)
+						i++;
+						if(i != n)
+							matchLoop(i)
+					})
+				}
+			})
+		}matchLoop(i)
+	}
+})*/
+setInterval(getFP,3000)
+getFP()
+function getFP(){
+	db.Match_Shedule.find({matchStatus:"running",local:{$exists:false}},{matchId:1},function(err,liveMatches){
+		if(liveMatches.length){
+			console.log(liveMatches)
+			var i=0,n=liveMatches.length;
+			function matchLoop(i){
+				console.log("in for")
+				console.log(liveMatches[i].matchId)
+				client1.get("match_day_" + liveMatches[i].matchId,function(err2,fPIndex){
+					if(err2)
+						console.log("error in getting findex")
+					else{
+						console.log("findex " + fPIndex)
+						console.log("scoreboard_" + liveMatches[i].matchId + "_day_" + fPIndex)
+						client1.get("scoreboard_" + liveMatches[i].matchId + "_day_" + fPIndex,function(err1,scoreboard){
+							scoreboard = JSON.parse(scoreboard) 
+							// console.log(scoreboard)
+							updateMatchFantasyPoints(scoreboard,function(){
+								i++;
+								if(i != n)
+									matchLoop(i)
+							})
+						})
+					}
+				})
+			}matchLoop(i)
+		}
+	})
+}
+function updateMatchFantasyPoints(match_score_info,callback){
 	var matchId = match_score_info.matchId;
 	console.log("match Id ==== " + matchId)
 	var batting_info = match_score_info.batting_info;
-	var batsman_info = batting_info.batsman_info;
-	var bowler_info = match_score_info.bowling_info.bowler_info;
-	var batsman_comments = []
-	db.Match_Shedule.findOne({matchId:matchId},{mtype:1,_id:0},function(matchDocerr,matchDoc){
-			if(matchDocerr)
-				console.log("error in getting match doc " + matchDocerr)
-			else{
-				if(matchDoc){
-					var mtype = matchDoc.mtype;
-					getfantasyIndex(batsman_info.length,matchId,function(fantasyIndex){
-						//update batting player fantacy points
-						// console.log("in first")
-						var fantasyIndex = fantasyIndex;
-						getBatsmansFantasyPoints(batsman_info,matchId,fantasyIndex,mtype,function(batsman_comments){
-							batsman_comments = batsman_comments;
-							getBowlersFantasyPoints(bowler_info,matchId,fantasyIndex,mtype,function(){
-								console.log(batsman_comments)
-								updateBowlerFantasyPoints(batsman_comments,matchId,mtype,fantasyIndex,function(){
-									console.log("batsman comment points updated")
+	if(batting_info){
+		var batsman_info = batting_info.batsman_info;
+		var bowler_info = match_score_info.bowling_info.bowler_info;
+		var batsman_comments = []
+		db.Match_Shedule.findOne({matchId:matchId},{mtype:1,_id:0},function(matchDocerr,matchDoc){
+				if(matchDocerr)
+					console.log("error in getting match doc " + matchDocerr)
+				else{
+					if(matchDoc){
+						var mtype = matchDoc.mtype;
+						getfantasyIndex(batsman_info.length,matchId,function(fantasyIndex){
+							if(fantasyIndex){
+								//update batting player fantacy points
+								// console.log("in first")
+								var fantasyIndex = fantasyIndex;
+								clearFantasyPoints(fantasyIndex,matchId,function(){
+									getBatsmansFantasyPoints(batsman_info,matchId,fantasyIndex,mtype,function(batsman_comments){
+										batsman_comments = batsman_comments;
+										getBowlersFantasyPoints(bowler_info,matchId,fantasyIndex,mtype,function(){
+											console.log(batsman_comments)
+											updateBowlerFantasyPoints(batsman_comments,matchId,mtype,fantasyIndex,function(){
+												console.log("batsman comment points updated")
+												callback()
+											})
+											// console.log(" am in callback fun")
+										})
+									})
 								})
-								console.log(" am in callback fun")
-							})
+								
+							}
+							
+							
+							//update bowler player fantacy points
+							
 						})
-						
-						//update bowler player fantacy points
-						
-					})
+					}
 				}
-			}
-	})
+		})
+		
+	}else{
+		console.log("batting info not available")
+	}
 	// client1.del("match_day_" + matchId)
 	// client1.del("match_days_count_" + matchId)
 	
 }
 var fIndex = 1;
 function getfantasyIndex(batsmen_length,matchId,callback){
+	client1.get("match_day_" + matchId,function(err,fIndex){
+		if(err)
+			console.log("redis get error " + err)
+		else{
+			if(fIndex)
+				callback(fIndex)
+			else
+				callback(0)
+		}
+	})
+
+}
+function getfantasyIndex_old(batsmen_length,matchId,callback){
 	console.log(batsmen_length)
-	if(batsmen_length == 8){
+	if(batsmen_length == 2){
 		console.log("in if")
 		client1.get("match_day_" + matchId,function(err,result){
 			if(err)
@@ -211,7 +294,7 @@ function getfantasyIndex(batsmen_length,matchId,callback){
 			}
 		})
 	}
-	else if(batsmen_length == 9){
+	else if(batsmen_length == 3){
 		console.log("in g if")
 		client1.get("match_days_count_" + matchId,function(err,result){
 			var incr_id = "match_days_count_" + matchId;
@@ -236,6 +319,68 @@ function getfantasyIndex(batsmen_length,matchId,callback){
 		})
 	}
 }
+function clearFantasyPoints(fantasyIndex,matchId,callback){
+	var players = [];
+	client1.smembers("squad_" + matchId + "_teams",function(err,teams){
+      	if(err){
+      		console.log("error in getting squad teams " + err)
+      	}
+        else
+        {
+          	if(teams)
+          	{
+          		var i=0,ni = teams.length;
+          		function teamsLoop(i){
+          			client1.smembers("squad_" + matchId + "_team" + teams[i],function(err,playersList){
+				      	if(err){
+				      		console.log("error in getting squad players from teams " + err)
+				      	}
+				        else
+				        {
+				          	if(playersList)
+				          	{
+				          		clearFP(playersList,matchId,fantasyIndex,function(){
+				          			i++;
+				          			if(i != ni){
+				          				teamsLoop(i)
+				          			}
+				          			if(i == ni){
+				          				callback(players)
+				          			}
+				          		})
+				          	}else{
+				          		i++;
+			          			if(i != ni){
+			          				teamsLoop(i)
+			          			}
+			          			if(i == ni){
+			          				callback(players)
+			          			}
+				          	}	
+				          	
+				      	}
+				  	})
+          		}
+          		teamsLoop(i)
+      		}else{
+      			callback()
+      		}
+  		}
+	})
+
+}
+function clearFP(players,matchId,fantasyIndex,callback){
+	var i=0,n=players.length;
+	var points = 0;
+	function playerLoop(i){
+		client1.set("fantasyPoints_" + matchId + "_" + players[i] + "_day_" + fantasyIndex,points)
+		i++;
+		if(i == n)
+			callback()
+		else
+			playerLoop(i)
+	}playerLoop(i)
+}
 function getBatsmansFantasyPoints(batsman_info,matchId,fantasyIndex,mtype,callback){
 	var batsman_comments = [];
 	var i=0,n=batsman_info.length;
@@ -244,15 +389,15 @@ function getBatsmansFantasyPoints(batsman_info,matchId,fantasyIndex,mtype,callba
 				var points = 0;
 				
 				var fp = {};
-				console.log("fantacy index for update ===================== " + fantasyIndex)
+				// console.log("fantacy index for update ===================== " + fantasyIndex)
 				
 				/*db.Match_Shedule.findOne({matchId:matchId},{mtype:1,_id:0},function(matchDocerr,matchDoc){
 					if(matchDocerr)
 						console.log("error in getting match doc " + matchDocerr)
 					else{
 						if(matchDoc){*/
-							for(var p in batsman_info[j].batsman_batting_info)
-								console.log(p + "-------")
+							/*for(var p in batsman_info[j].batsman_batting_info)
+								console.log(p + "-------" + batsman_info[j].batsman_batting_info[p])*/
 							battingfCal(batsman_info[j].batsman_batting_info,mtype,function(points){
 								var fp = {};
 								fp.day = "day_" + fantasyIndex;
@@ -296,7 +441,7 @@ function getBowlersFantasyPoints(bowler_info,matchId,fantasyIndex,mtype,callback
 				var points = 0;
 				
 				var fp = {};
-				console.log("fantacy index for update ===================== " + fantasyIndex)
+				// console.log("fantacy index for update ===================== " + fantasyIndex)
 				
 				/*db.Match_Shedule.findOne({matchId:matchId},{mtype:1,_id:0},function(matchDocerr,matchDoc){
 					if(matchDocerr)
@@ -326,7 +471,7 @@ function getBowlersFantasyPoints(bowler_info,matchId,fantasyIndex,mtype,callback
 								}
 							})*/
 							// code to store fantasy points in redis
-							console.log(bowler_info[j].playerId)
+							console.log(bowler_info[j].playerId + " === " + points)
 							client1.set("fantasyIndex_" + matchId,fantasyIndex)
 							client1.set("fantasyPoints_" + matchId + "_" + bowler_info[j].playerId + "_day_" + fantasyIndex,points)
 							i++;
@@ -348,23 +493,35 @@ function updateBowlerFantasyPoints(batsman_comments,matchId,mtype,fantasyIndex,c
 		evaluateComment(batsman_comments[i],matchId,mtype,fantasyIndex);
 	}*/
 	var i=0;
-	(function evaluateCommentF(i){
-		evaluateComment(batsman_comments[i],matchId,mtype,fantasyIndex,function(){
+	// console.log(batsman_comments.length)
+	function evaluateCommentF(i){
+		if(batsman_comments[i]){
+			evaluateComment(batsman_comments[i],matchId,mtype,fantasyIndex,function(){
+				i++;
+				console.log(i + " === " + batsman_comments.length)
+				if(i >= batsman_comments.length)
+					callback()
+				else
+					evaluateCommentF(i)
+			});
+		}else{
 			i++;
 			console.log(i + " === " + batsman_comments.length)
-			if(i == batsman_comments.length)
+			if(i >= batsman_comments.length)
 				callback()
 			else
 				evaluateCommentF(i)
-		});
-	})(i)
+		}
+	}evaluateCommentF(i)
 }
 function evaluateComment(batsman_comment,matchId,mtype,fantasyIndex,callback){
+
 	batsman_comment = batsman_comment.trim();
 	console.log(" comment is === " + batsman_comment)
 	if(batsman_comment !== "" && batsman_comment !== "not out"){
 		var pts =0;
 		if(batsman_comment[0] == "c"){
+			console.log("in c if block ")
 			if(batsman_comment.split(" ")[1] == "sub"){
 				var bowler_name = batsman_comment.substring(parseInt(batsman_comment.indexOf("("))+1,parseInt(batsman_comment.indexOf(")"))).trim();
 			}else{
@@ -376,7 +533,9 @@ function evaluateComment(batsman_comment,matchId,mtype,fantasyIndex,callback){
 			}else{
 				pts = 6
 			}
+			console.log(bowler_name)
 			updateBowlerPoints(bowler_name,matchId,fantasyIndex,pts,function(){
+				console.log("in updation --")
 				callback()
 			})
 			
@@ -421,6 +580,8 @@ function evaluateComment(batsman_comment,matchId,mtype,fantasyIndex,callback){
 			}else{
 				callback()
 			}
+		}else{
+			callback();
 		}
 	}else{
 		callback()
@@ -429,8 +590,9 @@ function evaluateComment(batsman_comment,matchId,mtype,fantasyIndex,callback){
 function updateBowlerPoints(bowler_name,matchId,fantasyIndex,pts,callback){
 	getBowlerId(bowler_name,matchId,function(bowlerId){
 		if(bowlerId != 0){
-			updatePoints(bowlerId,matchId,fantasyIndex,pts,function(){
-				console.log("player " + bowerId + " fantasy points updated")
+			updatePoints(bowlerId,matchId,fantasyIndex,pts,function(pots){
+				console.log("player " + bowlerId + " fantasy points updated")
+				console.log(bowlerId + " === " + pots)
 				callback();
 			})
 		}else{
@@ -438,52 +600,57 @@ function updateBowlerPoints(bowler_name,matchId,fantasyIndex,pts,callback){
 		}
 	})
 }
-function updatePoints(bowerId,matchId,fantasyIndex,pts,cback){
+function updatePoints(bowlerId,matchId,fantasyIndex,pts,cback){
 	client1.get("fantasyPoints_" + matchId + "_" + bowlerId + "_day_" + fantasyIndex,function(err1,result1){
 		if(err1)
 			console.log("error in getting player fantasy points " + err1)
 		else{
 			if(result1 === null){
 				client1.set("fantasyPoints_" + matchId + "_" + bowlerId + "_day_" + fantasyIndex,pts)
-				cback()
+				cback(pts)
 			}else{
 				pts += parseInt(result1)
 				client1.set("fantasyPoints_" + matchId + "_" + bowlerId + "_day_" + fantasyIndex,pts)
-				cback()
+				cback(pts)
 			}
 		}
 	})
 }
 function getBowlerId(bowler_name,matchId,callback){
 	client1.smembers("squad_" + matchId + "_teams",function(er,re){
-		console.log(re);
-		var i1=0;ni=re.length;
-		for(var i=0;i<re.length;i++){
-			var abc = re[i]
-			client1.smembers("squad_" + matchId + "_team"+re[i],function(er,re1){
-				var j1=0;nj=re1.length;
-				i1++;
-				for(var j=0;j<re1.length;j++){
-					client1.hgetall("squad." + matchId + "." + abc + "." + re1[j],function(er,resu){
-						console.log(resu)
-						j1++;
-						if(resu.playerName.indexOf(bowler_name) > -1){
-							var bowlerId = resu.playerId;
-							callback(bowlerId)
-						}else if(j1 == nj && i1 == ni){
-							callback(0)
-						}
-						/*for(var prop in resu){
-							console.log(resu[prop])
-							var ppp = JSON.parse(resu[prop])
-							for(var prop1 in ppp){
-								console.log(ppp[prop1])
+		if(er)
+			console.log("error in getting team info " + er)
+		else{
+			// console.log(re);
+			var i1=0;ni=re.length;
+			function reLoop(i1){
+				var abc = re[i1];
+				client1.smembers("squad_" + matchId + "_team"+re[i1],function(er,re1){
+					var j1=0;nj=re1.length;
+					i1++;
+					function re1Loop(j1){
+						console.log("squad." + matchId + "." + abc + "." + re1[j1])
+						client1.hgetall("squad." + matchId + "." + abc + "." + re1[j1],function(er,resu){
+
+							j1++;
+							console.log(" playerId is  " + resu.playerId)
+							if(resu.playerName.indexOf(bowler_name) > -1){
+								var bowlerId = resu.playerId;
+								callback(bowlerId)
+							}else if(j1 >= nj){
+								if(i1 >= ni)
+									callback(0)
+								else
+									reLoop(i1)
+							}else{
+								re1Loop(j1)
 							}
-						}*/
-					})
-				}
-			})
+						})
+					}re1Loop(j1);
+				})
+			}reLoop(i1)
 		}
+		
 	})
 }
 function battingfCal(batsman_obj,mtype,callback){
@@ -632,6 +799,7 @@ function bowlingfCal(bowler_obj,mtype,callback){
 	var overs = parseInt(bowler_obj.Overs)
 	if(mtype == "odi"){
 		points += (maidens*5);
+		points += (wickets*15);
 		if(wickets > 5){
 			var rw = wickets-5
 			points += (rw*10);
@@ -650,7 +818,7 @@ function bowlingfCal(bowler_obj,mtype,callback){
 				points -= 20
 			else if(econemyRates >= 8) 
 				points -= 10
-			else if(econemyRates = 6) 
+			else if(econemyRates == 6) 
 				points -= 5
 			else if(econemyRates >= 5) 
 				points += 0
@@ -667,6 +835,8 @@ function bowlingfCal(bowler_obj,mtype,callback){
 		callback(points)
 	}else if(mtype == "test"){
 		points += (maidens*1);
+		points += (wickets*25);
+
 		if(wickets > 5){
 			var rw = wickets-5
 			points += (rw*5);
@@ -685,7 +855,7 @@ function bowlingfCal(bowler_obj,mtype,callback){
 				points -= 30
 			else if(econemyRates >= 8) 
 				points -= 25
-			else if(econemyRates = 6) 
+			else if(econemyRates == 6) 
 				points -= 20
 			else if(econemyRates >= 5) 
 				points -= 15
@@ -698,11 +868,12 @@ function bowlingfCal(bowler_obj,mtype,callback){
 			else if(econemyRates >= 3) 
 				points += 5
 		}
-		console.log("points is ====== " + points)
+		console.log("bowling points is ====== " + points)
 		callback(points)
 
 	}else if(mtype == "twenty20" || mtype == "t20"){
 		points += (maidens*10);
+		points += (wickets*10);
 		if(wickets > 5){
 			var rw = wickets-5
 			points += (rw*20);
@@ -721,7 +892,7 @@ function bowlingfCal(bowler_obj,mtype,callback){
 				points -= 10
 			else if(econemyRates >= 8) 
 				points -= 5
-			else if(econemyRates = 6) 
+			else if(econemyRates == 6) 
 				points += 0
 			else if(econemyRates >= 5) 
 				points += 10

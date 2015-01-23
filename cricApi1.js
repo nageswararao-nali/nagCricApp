@@ -2,16 +2,16 @@ var async = require('async');
 var request = require('request');
 var cheer = require('cheerio');
 var db = require('./db');
-var fs = require('fs')
 var help_script = require('./helper_script');
-var scorecard_object = require('./scorecard_object');
+var redis = require('redis');
+var client1 = redis.createClient();
 
 var all_matches = help_script.scoreboard1.all_matches;
 var bowling_stat = help_script.scoreboard1.bowling_stat;
 var batting_score = help_script.scoreboard1.batting_score;
 var match_full_info = help_script.scoreboard1.match_full_info;
 
-exports.getMatches = function(){
+exports.getMatches = function(maincallback){
 	var upcoming_matches_url = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.upcoming_matches&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
 	request(upcoming_matches_url,function(err, resp, matchContent){
 		var matches_object = JSON.parse(matchContent);
@@ -22,8 +22,10 @@ exports.getMatches = function(){
 			teams.push(match.Team[1].teamid)
 			db.Match_Shedule.findOne({matchId : match.matchid},function(err,docs){
 		    	if(docs){
-		    		docs.StartDate = Date.parse(match.StartDate);
-					docs.EndDate = Date.parse(match.EndDate);
+		    		var match_start_date = new Date(match.StartDate)
+					var match_end_date = new Date(match.EndDate)
+		    		docs.StartDate = match_start_date.toISOString();
+					docs.EndDate = match_end_date.toISOString();
 		    		docs.save();
 		    		console.log("match updated");
 		    		callback();
@@ -34,8 +36,10 @@ exports.getMatches = function(){
 					upcomming_match_object.series_id = match.series_id;
 					upcomming_match_object.series_name = match.series_name;
 					upcomming_match_object.MatchNo = match.MatchNo;
-					upcomming_match_object.StartDate = Date.parse(match.StartDate);
-					upcomming_match_object.EndDate = Date.parse(match.EndDate);
+					var match_start_date = new Date(match.StartDate)
+					var match_end_date = new Date(match.EndDate)
+					upcomming_match_object.StartDate = match_start_date.toISOString();
+					upcomming_match_object.EndDate = match_end_date.toISOString();
 					upcomming_match_object.team1 = {}
 					upcomming_match_object.team2 = {}
 					upcomming_match_object.team1.teamName = match.Team[0].Team;
@@ -55,12 +59,15 @@ exports.getMatches = function(){
 			})
 			
 		},function(err){
-			console.log(teams.length)
-			getTeamInfo(teams)
+			console.log(teams.length + " ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+			getTeamInfo(teams,function(){
+				console.log(" in 111111111111111111111111111111111111111111")
+				maincallback(null,"one");
+			})
 		})
 	})
 }
-exports.getUpcomingSeriesMatches = function(){
+exports.getUpcomingSeriesMatches = function(maincallback){
 	var upcoming_matches_url = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.series.upcoming&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
 	request(upcoming_matches_url,function(err, resp, matchContent){
 		var matches_object = JSON.parse(matchContent);
@@ -75,8 +82,10 @@ exports.getUpcomingSeriesMatches = function(){
 					teams.push(match.Team[1].teamid)
 				db.Match_Shedule.findOne({matchId : match.matchid},function(err,docs){
 			    	if(docs){
-			    		docs.StartDate = Date.parse(match.StartDate);
-						docs.EndDate = Date.parse(match.EndDate);
+			    		var match_start_date = new Date(match.StartDate)
+						var match_end_date = new Date(match.EndDate)
+			    		docs.StartDate = match_start_date.toISOString();
+						docs.EndDate = match_end_date.toISOString();
 			    		docs.save();
 			    		console.log("match updated");
 			    		callback1();
@@ -87,8 +96,10 @@ exports.getUpcomingSeriesMatches = function(){
 						upcomming_match_object.series_id = series.SeriesId;
 						upcomming_match_object.series_name = series.SeriesName;
 						upcomming_match_object.MatchNo = match.MatchNo;
-						upcomming_match_object.StartDate = Date.parse(match.StartDate);
-						upcomming_match_object.EndDate = Date.parse(match.EndDate);
+						var match_start_date = new Date(match.StartDate)
+						var match_end_date = new Date(match.EndDate)
+						upcomming_match_object.StartDate = match_start_date.toISOString();
+						upcomming_match_object.EndDate = match_end_date.toISOString();
 						upcomming_match_object.team1 = {}
 						upcomming_match_object.team2 = {}
 						upcomming_match_object.team1.teamName = match.Team[0].Team;
@@ -115,110 +126,119 @@ exports.getUpcomingSeriesMatches = function(){
 			
 		},function(err){
 			// console.log(teams)
-			getTeamInfo(teams)
+			getTeamInfo(teams,function(){
+				console.log("in 2222222222222222222222222222222222222222222222222")
+				maincallback(null,"Two")
+			})
 			// teams.distinct();
 			// console.log(teams.length)
 		})
 	})	
 }
-var getTeamInfo = function(teamArray){
+var getTeamInfo = function(teamArray,cback){
 	async.eachSeries(teamArray,function(teamId,callback){
-		db.Team_Info.findOne({teamId : teamId},function(err,teamdocs){
-			if(teamdocs){
-				callback();
-			}else{
-				var teamInfoUrl = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.team.profile%20where%20team_id%3D" + teamId + "&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
-				request(teamInfoUrl,function(err, resp, teamProfile){
-					var teamProfile = JSON.parse(teamProfile);
-					var teamInfoObj = teamProfile.query.results.TeamProfile;
-					var teamInfo = {}, players = [];
-					teamInfo.teamId = teamId;
-					teamInfo.teamName = teamInfoObj.TeamName;
-					teamInfo.teamShortName = teamInfoObj.ShortName;
-					teamInfo.teamLogoPath = teamInfoObj.TeamLogoPath;
-					teamInfo.teamLogoSmallPath = teamInfoObj.TeamLogoSmallPath;
-					teamInfo.teamFlagPath = teamInfoObj.TeamFlagPath;
-					teamInfo.teamSmallFlagPath = teamInfoObj.TeamSmallFlagPath;
-					teamInfo.teamRoundFlagPath = teamInfoObj.TeamRoundFlagPath;
-					teamInfo.teamSmallRoundFlagPath = teamInfoObj.TeamSmallRoundFlagPath;
-					teamInfo.teamLargeRoundFlagPath = teamInfoObj.TeamLargeRoundFlagPath;
-					function savePlayers (playerInfo,teamId,callback2){
-						player = {};
-						var personId = player.playerId = playerInfo.personid;
-						db.Player_Profile.findOne({playerId : personId},function(err2,docs){
-							if(err2){
-								console.log(err2)
-							}else{
-								if(docs){
-						    		console.log(docs)
-						    		callback2();
-						    	}else{
-									player.playerId = playerInfo.personid
-									player.teamId = teamId;
-									player.firstName = playerInfo.FirstName
-									player.lastName = playerInfo.LastName
-									var Player_Profile_Info = new db.Player_Profile(player);
-								    Player_Profile_Info.save(function(err, recs){
-								    	if(err)
-								    		console.log("error in saving player profile")
-								    	else{
-								    		console.log(recs);
-								    		console.log("player profile saved sussfully")
-								    		callback2()
-								    	}
-								    });
-						    	}
-							}
-						})
-					}
-					console.log(teamInfoObj.Players)
-					if(teamInfoObj.Players != null){
-						async.eachSeries(teamInfoObj.Players.Player,function(playerInformation,callback1){
-							var personId = playerInformation.personid
-							players.push(personId)
-							savePlayers(playerInformation,teamId,function(){
-								callback1();
+		if(teamId){
+			db.Team_Info.findOne({teamId : teamId},function(err,teamdocs){
+				if(teamdocs){
+					console.log(teamdocs.teamId)
+					callback();
+				}else{
+					console.log(teamId + " =======================")
+					var teamInfoUrl = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.team.profile%20where%20team_id%3D" + teamId + "&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
+					request(teamInfoUrl,function(err, resp, teamProfile){
+						var teamProfile = JSON.parse(teamProfile);
+						var teamInfoObj = teamProfile.query.results.TeamProfile;
+						var teamInfo = {}, players = [];
+						teamInfo.teamId = teamId;
+						teamInfo.teamName = teamInfoObj.TeamName;
+						teamInfo.teamShortName = teamInfoObj.ShortName;
+						teamInfo.teamLogoPath = teamInfoObj.TeamLogoPath;
+						teamInfo.teamLogoSmallPath = teamInfoObj.TeamLogoSmallPath;
+						teamInfo.teamFlagPath = teamInfoObj.TeamFlagPath;
+						teamInfo.teamSmallFlagPath = teamInfoObj.TeamSmallFlagPath;
+						teamInfo.teamRoundFlagPath = teamInfoObj.TeamRoundFlagPath;
+						teamInfo.teamSmallRoundFlagPath = teamInfoObj.TeamSmallRoundFlagPath;
+						teamInfo.teamLargeRoundFlagPath = teamInfoObj.TeamLargeRoundFlagPath;
+						function savePlayers (playerInfo,teamId,callback2){
+							player = {};
+							var personId = player.playerId = playerInfo.personid;
+							db.Player_Profile.findOne({playerId : personId},function(err2,docs){
+								if(err2){
+									console.log(err2)
+								}else{
+									if(docs){
+							    		console.log(docs)
+							    		callback2();
+							    	}else{
+										player.playerId = playerInfo.personid
+										player.teamId = teamId;
+										player.firstName = playerInfo.FirstName
+										player.lastName = playerInfo.LastName
+										var Player_Profile_Info = new db.Player_Profile(player);
+									    Player_Profile_Info.save(function(err, recs){
+									    	if(err)
+									    		console.log("error in saving player profile")
+									    	else{
+									    		console.log(recs);
+									    		console.log("player profile saved sussfully")
+									    		callback2()
+									    	}
+									    });
+							    	}
+								}
 							})
-						},function(err1){
-							if(err1)
-								console.log(err1)
-							else{
-								teamInfo.players = players;
-								var Team_Profile_Info = new db.Team_Info(teamInfo);
-							    Team_Profile_Info.save(function(err, recs){
-							    	if(err)
-							    		console.log("error in saving team info")
-							    	else
-							    		console.log("Team saved sussfully")
-							    });
-							}
+						}
+						console.log(teamInfoObj.Players)
+						if(teamInfoObj.Players != null){
+							async.eachSeries(teamInfoObj.Players.Player,function(playerInformation,callback1){
+								var personId = playerInformation.personid
+								players.push(personId)
+								savePlayers(playerInformation,teamId,function(){
+									callback1();
+								})
+							},function(err1){
+								if(err1)
+									console.log(err1)
+								else{
+									teamInfo.players = players;
+									var Team_Profile_Info = new db.Team_Info(teamInfo);
+								    Team_Profile_Info.save(function(err, recs){
+								    	if(err)
+								    		console.log("error in saving team info")
+								    	else
+								    		console.log("Team saved sussfully")
+								    });
+								}
+								callback()
+							})
+						}else{
+							console.log("Team info with " + teamId + "not available")
 							callback()
-						})
-					}else{
-						console.log("Team info with " + teamId + "not available")
-						callback()
-					}
-				})
-			}
-		})
+						}
+					})
+				}
+			})
+		}else{
+			cback()
+		}
+		
 	},function(err){
 		console.log("All teams are Saved ")
+		cback();
 	})
 }
 
 exports.getTeamInfo = getTeamInfo;
-exports.getSquadInfo = function(){
+exports.getSquadInfo = function(maincallback){
 	var newDate = new Date();
 	console.log(newDate)
-	// console.log(newDate.toISOString())
-	newDate = newDate.toISOString()
-	// db.Match_Shedule.find({StartDate:{$gte : newDate}},{matchId:1,"team1.teamId":1,"team1.teamName":1,"team2.teamId":1,"team2.teamName":1},{limit : 1,skip:1{limit : 1,skip:1},function(err,docs){
-	db.Match_Shedule.find({StartDate:{$gte : newDate}},{matchId:1,"team1.teamId":1,"team1.teamName":1,"team2.teamId":1,"team2.teamName":1},function(err,docs){
-		console.log(docs.length + "   matches length..............")
+	// newDate = newDate.toISOString()
+	// db.Match_Shedule.find({StartDate:{$gte : newDate}},{matchId:1,"team1.teamId":1,"team1.teamName":1,"team2.teamId":1,"team2.teamName":1},function(err,docs){
+	db.Match_Shedule.find({matchId:190543},{matchId:1,"team1.teamId":1,"team1.teamName":1,"team2.teamId":1,"team2.teamName":1},function(err,docs){
+		console.log(docs.length + " matches length..............")
 		console.log(docs)
 		var i=1;
 		async.eachSeries(docs,function(match,callback){
-			
 			var squad_url = "https://cricket.yahoo.com/prematch-" + match.team1.teamName.replace(/ /gi,"-") + "-vs-" + match.team2.teamName.replace(/ /gi,"-") + "_" + match.matchId;
 			console.log(squad_url)
 			request(squad_url,function(err, resp, matchSquad){
@@ -227,44 +247,42 @@ exports.getSquadInfo = function(){
 					callback();
 				}
 				else{
-					// console.log(matchSquad)
 					var matchId = match.matchId;
 					var matchPlayer = {};
 					matchPlayer.matchId = matchId;
 					matchPlayer.teams = [];
-					// console.log(i);
-					// i++;
 					var $ = cheer.load(matchSquad);
 					function getMatchPlayer(squad_content,callback1){
 						var j = 0,x=squad_content.length;
-						// console.log(x + " ===== x value")
 						squad_content.each(function(){
-							// console.log(j + " j values ============================")
 							var teamShortName = $(this).find("p").text().substring(0,3).trim();
 							var ulList = $(this);
 							db.Team_Info.findOne({teamShortName : teamShortName},{teamId:1},function(err1,teamdocs){
-								
 								if(err1)
 									console.log("error in finding team")
 								else{
 									if(teamdocs && ulList.find("li").length){
-										// console.log(j + " j values ============================")
 										teamInfoContent = {};
 										var teamDocId = teamdocs.teamId; 
 										teamInfoContent.teamId = teamDocId;
+										client1.sadd("squad_" + matchId + "_teams",teamDocId)
 										teamInfoContent.players = [];
-
-										// matchPlayer[teamDocId] = [];
 										var n = ulList.find("li").length; ii=0;
-
 										ulList.find("li").each(function(){
 											var plyrInfo = {}
 											var plyr = $(this).find("a").attr("href").split("_")[1]
+											var plyr_name = $(this).find("a").text().trim();
 											console.log(j + " ---------------------- " + plyr)
 											plyrInfo.playerId = plyr;
+											plyrInfo.playerName = plyr_name;
 											plyrInfo.averageBid = 10;
 											plyrInfo.highestBid = 10;
 											plyrInfo.matchFantasyPoints = 10;
+											client1.sadd("squad_" + matchId + "_team" + teamDocId,plyr)
+											console.log("squad." + matchId + "." + teamDocId + "." + plyr)
+											client1.hmset("squad." + matchId + "." + teamDocId + "." + plyr,plyrInfo,function(err,arg){
+												console.log(arg)
+											})
 											teamInfoContent.players.push(plyrInfo)
 											ii++;
 											if(ii == n){
@@ -275,36 +293,27 @@ exports.getSquadInfo = function(){
 												if(j == x)
 												{
 													console.log("================================================")
-													// console.log(matchPlayer)
+													/*client1.hmset("squad_" + matchId,"",matchPlayer,function(err,obj){
+														console.log(err)
+														console.log(obj)
+													})*/
 													callback1();
 												}
 											}
-											// if(i == n && j == x){
-												
-											// }
-											// else
-												// console.log(i + "-----------------------------")
 										})
 									}else{
 										console.log(teamShortName + " not found=========================")
 										callback1()
 									}
-									
-									// callback1();
 								}
-								
 							})
-							
 							console.log(teamShortName)
-							// j++;
 						})
 					}
 					function getMatchPlayerStarted(squad_content,callback1){
-
 						var j = 0,x=squad_content.length;
 						console.log(x)
 						squad_content.each(function(){
-							
 							var teamShortName = $(this).find(".ycric-playingeleven-flagholder").find(".ycric-playingeleven-teamsname").html().trim().substring(0,3).trim();
 							var ulList = $(this);
 							db.Team_Info.findOne({teamShortName : teamShortName},{teamId:1},function(err1,teamdocs){
@@ -315,20 +324,25 @@ exports.getSquadInfo = function(){
 										teamInfoContent = {};
 										var teamDocId = teamdocs.teamId; 
 										teamInfoContent.teamId = teamDocId;
+										client1.sadd("squad_" + matchId + "_teams",teamDocId)
 										teamInfoContent.players = [];
-
-										// matchPlayer[teamDocId] = [];
 										var n = ulList.find(".ycric-playingeleven-playernames a").length;i=1;
 										ulList.find(".ycric-playingeleven-playernames a").each(function(){
 											var plyrInfo = {}
 											var plyr = $(this).attr("href").split("_")[1]
+											var plyr_name = $(this).text().trim()
 											console.log(plyr)
 											plyrInfo.playerId = plyr;
+											plyrInfo.playerName = plyr_name;
 											plyrInfo.averageBid = 10;
 											plyrInfo.highestBid = 10;
 											plyrInfo.matchFantasyPoints = 10;
+											client1.sadd("squad_" + matchId + "_team" + teamDocId,plyr)
+											console.log("squad." + matchId + "." + teamDocId + "." + plyr)
+											client1.hmset("squad." + matchId + "." + teamDocId + "." + plyr,plyrInfo,function(err,arg){
+												console.log(arg)
+											})
 											teamInfoContent.players.push(plyrInfo)
-											
 											i++;
 											if(i == n){
 												j++;
@@ -337,30 +351,30 @@ exports.getSquadInfo = function(){
 												console.log("=========================================" + j)
 												if(j == x){
 													console.log("================================================")
-													// console.log(matchPlayer)
 													callback1();
 												}
 											}
-											
-											// else
-												// console.log(i + "-----------------------------")
 										})
 									}else{
 										console.log(teamShortName + "not foound================================")
 										callback1()
 									}
-									
-									// callback1();
 								}
-								
 							})
-							
 							console.log(teamShortName)
-							// j++;
 						})
 					}
+					var team1Name = match.team1.teamName;
+					var team2Name = match.team2.teamName;
 					if($(".ycric-prem-squaddet").length == 0){
 						getMatchPlayerStarted($(".ycric-playingeleven-entry"),function(){
+							var rcon = matchPlayer;
+							client1.hmset("squad." + matchId,rcon,function(err,arg){
+								if(err)
+									console.log(err)
+								else
+									console.log(arg)
+							})
 							db.MatchPlayers.findOne({matchId : matchId},function(err2,matchPlayerdocs){
 								if(err2)
 									console.log("error in matchplayer")
@@ -368,9 +382,9 @@ exports.getSquadInfo = function(){
 									if(matchPlayerdocs){
 										matchPlayerdocs.teams = matchPlayer.teams;
 										console.log("match players updated")
+										matchPlayerdocs.save();
 										callback()
 									}else{
-										// console.log(matchPlayer)
 										var matchPlayerInfo = new db.MatchPlayers(matchPlayer)
 										matchPlayerInfo.save(function(err,recs){
 											if(err)
@@ -378,7 +392,10 @@ exports.getSquadInfo = function(){
 											else{
 												console.log(recs)
 												console.log("match player info saved")
-												callback()
+												var notificationMessage = team1Name + " Vs " + team2Name + " match strartd. Start bidding";
+												// sendSquadAnouncecNotification(notificationMessage,function(){
+													callback()
+												// })
 											}
 										})
 									}
@@ -388,16 +405,36 @@ exports.getSquadInfo = function(){
 						})
 					}else{
 						getMatchPlayer($(".ycric-prem-squaddet"),function(){
+							/*for(var i=0;i<matchPlayer.teams.length;i++){
+								var t = matchPlayer.teams[i].teamId
+								client1.sadd("squad_" + matchId + "_teams",t)
+								client1.hmset("squad." + matchId + ".team" + i,matchPlayer.teams[i].players)
+							}*/
+							/*var rcon = matchPlayer;
+							console.log(matchPlayer.teams)
+							client1.hmset("squad." + matchId,rcon,function(err,arg){
+								if(err)
+									console.log(err)
+								else
+									console.log(arg)
+							})*/
+							var rcon = matchPlayer;
+							client1.hmset("squad." + matchId,rcon,function(err,arg){
+								if(err)
+									console.log(err)
+								else
+									console.log(arg)
+							})
 							db.MatchPlayers.findOne({matchId : matchId},function(err2,matchPlayerdocs){
 								if(err2)
 									console.log("error in matchplayer")
 								else{
 									if(matchPlayerdocs){
 										matchPlayerdocs.teams = matchPlayer.teams;
+										matchPlayerdocs.save();
 										console.log("match players updated")
 										callback()
 									}else{
-										// console.log(matchPlayer)
 										var matchPlayerInfo = new db.MatchPlayers(matchPlayer)
 										matchPlayerInfo.save(function(err,recs){
 											if(err)
@@ -405,27 +442,101 @@ exports.getSquadInfo = function(){
 											else{
 												console.log(recs)
 												console.log("match player info saved")
-												callback()
+												var notificationMessage = team1Name + " Vs " + team2Name + " match strartd. Start bidding";
+												sendSquadAnouncecNotification(notificationMessage,function(){
+													callback()
+												})
 											}
 										})
 									}
 								}
 							})
-							// callback()
 						})
 					}
-					
-					
-					
 				}
-				
 			})
 		},function(err){
 			console.log(" all matches completed  **************************************************")
+			getMatchUrl(function(){
+				console.log("full match details updated")
+				maincallback(null,"Three")
+			})
 		})
 	})
 }
-
+function sendSquadAnouncecNotification(notificationMessage,callback){
+	var pDate = new Date();
+	var uDate = pDate.setDate(pDate.getDate() - 3) // 3 days before date
+	db.userSchema.find({loginDate:{$lte:uDate}},{_id:1},function(err,users){
+		if(err){
+			console.log("error in getting users " + err)
+		}else{
+			if(users){
+				console.log(users.length)
+				var j=0,nj=users.length;
+				for(var i=0;i<users.length;i++){
+					console.log(users[i]._id)
+					var notification = {};
+					notification.user = users[i]._id;
+					notification.message = notificationMessage;
+					notification.createDate = new Date();
+					console.log(notification)
+					var notifications = new db.Notifications(notification);
+					notifications.save(function(err,recs){
+						if(err){
+							console.log("error in saving notification " + err)
+						}else{
+							console.log("save notification ")
+							j++;
+							if(j == nj){
+								/*sendSquadAnouncecNotificationToFollowedUsers(notificationMessage,function(){
+									callback()
+								})*/
+								callback()
+							}
+						}
+					})
+				}
+			}else{
+				console.log(" no users found ")
+			}
+		}
+	})
+}
+function sendSquadAnouncecNotificationToFollowedUsers(notificationMessage,callback){
+	db.matchFollowers.find({loginDate:{$lte:uDate}},{_id:1},function(err,users){
+		if(err){
+			console.log("error in getting users " + err)
+		}else{
+			if(users){
+				console.log(users.length)
+				var j=0,nj=users.length;
+				for(var i=0;i<users.length;i++){
+					console.log(users[i]._id)
+					var notification = {};
+					notification.user = users[i]._id;
+					notification.message = notificationMessage;
+					notification.createDate = new Date();
+					console.log(notification)
+					var notifications = new db.Notifications(notification);
+					notifications.save(function(err,recs){
+						if(err){
+							console.log("error in saving notification " + err)
+						}else{
+							console.log("save notification ")
+							j++;
+							if(j == nj){
+								callback()
+							}
+						}
+					})
+				}
+			}else{
+				console.log(" no users found ")
+			}
+		}
+	})
+}
 exports.getPlayerOtherInfo = function(queryCriteria){
 	db.Player_Profile.find(queryCriteria,{playerId:1,firstName:1,lastName:1,teamId:1},function(err, docs){
 		if(err)
@@ -447,51 +558,42 @@ exports.getPlayerOtherInfo = function(queryCriteria){
 						console.log(player_name)
 						$ = cheer.load(searchResultPage);
 						if($("#plysRslt").find("ul li").length>1){
-							console.log("in if")
-							console.log(player.teamId)
-							db.Team_Info.findOne({teamId:player.teamId},{teamName:1,_id:0},function(err, docss){
+							db.team_info.findOne({teamId:player.teamId},{teamName:1,_id:0},function(err, docss){
 								if(docss){
-									console.log(docss)
-									var player_count = 0;
 									$("#plysRslt").find("ul li").each(function(){
 										if($(this).find("span").text().trim() == docss.teamName){
-											player_count++;
-											if(player_count == 1){
-												var pl_url = $(this).find("a").attr("href");
-												var player_url = "";
-												if(pl_url === "undefined")
-													player_url = "";
-												else
-													player_url = "http://www.espncricinfo.com" + pl_url;
-												console.log(player_url + "-------------------")
-												cricPlayerId = player_url.split("/").pop().substring(0,player_url.split("/").pop().indexOf("."))
-												if(cricPlayerId == "www"){
-													callback()
-												}else{
-													playerOtherInfo.cricPlayerId = cricPlayerId;
-													playerOtherInfo.cricPlayerUrl = player_url;
-													playerOtherInfo.cricAPlayerUrl = "";
-													console.log(cricPlayerId)
-													db.Player_Profile.update({playerId:player.playerId},{$set : {otherInfo : playerOtherInfo}},function(err3,result){
-														if(err3){
-															console.log("error in updation")
-															callback()
-														}
-														else{
-															console.log(result)
-															callback()
-														}
-													})
-												}
+											var pl_url = $(this).find("a").attr("href");
+											var player_url = "";
+											if(pl_url === "undefined")
+												player_url = "";
+											else
+												player_url = "http://www.espncricinfo.com" + pl_url;
+											console.log(player_url + "-------------------")
+											cricPlayerId = player_url.split("/").pop().substring(0,player_url.split("/").pop().indexOf("."))
+											if(cricPlayerId == "www"){
+												callback()
+											}else{
+												playerOtherInfo.cricPlayerId = cricPlayerId;
+												playerOtherInfo.cricPlayerUrl = player_url;
+												playerOtherInfo.cricAPlayerUrl = "";
+												console.log(cricPlayerId)
+												db.Player_Profile.update({playerId:player.playerId},{$set : {otherInfo : playerOtherInfo}},function(err3,result){
+													if(err3){
+														console.log("error in updation")
+														callback()
+													}
+													else{
+														console.log(result)
+														callback()
+													}
+												})
 											}
-											
 										}
 									})
 								}
 							})
 
 						}else{
-							console.log("in else")
 							var pl_url = $("#plysRslt").find("ul li a").attr("href");
 							var player_url = "";
 							if(pl_url === "undefined")
@@ -535,8 +637,7 @@ exports.getPlayerOtherInfo = function(queryCriteria){
 	})
 }
 exports.getPlayerStatInfo = function(queryCriteria){
-
-	db.Player_Profile.find(queryCriteria,{playerId:1,"otherInfo.cricPlayerId":1,"otherInfo.cricPlayerUrl":1},function(playerGetErr, playerDocs){
+	db.Player_Profile.find(queryCriteria,{playerId:1,"otherInfo.cricPlayerId":1,"otherInfo.cricPlayerUrl":1},{limit:50},function(playerGetErr, playerDocs){
 		if(playerGetErr){
 			console.log("error in getting player info from player profile");
 		}
@@ -544,10 +645,8 @@ exports.getPlayerStatInfo = function(queryCriteria){
 			if(playerDocs){
 				var playerIds = [];
 				async.eachSeries(playerDocs,function(playerDoc,callback){
-					// url = "http://www.espncricinfo.com" + url;
 					playerIds.push(playerDoc.playerId)
 					var url = playerDoc.otherInfo.cricPlayerUrl;
-					
 					if(url.indexOf("undefined") >= 0 || url == ""){
 						callback();
 					}
@@ -564,9 +663,6 @@ exports.getPlayerStatInfo = function(queryCriteria){
 							var player_name = player_name_content.substring(0,player_name_content.indexOf("<a"));
 							var player_country = content.find(".ciPlayernametxt").find("h3").text();
 							var player_fullname = content.find(".ciPlayerinformationtxt").eq(0).find("span").text();
-							// player_info.name = player_name;
-							// player_info.country = player_country;
-							// player_info.fullname = player_fullname;
 							var batting_match_type_obj = {
 								"Tests" :  null,
 				  				"ODIs": null,
@@ -594,37 +690,21 @@ exports.getPlayerStatInfo = function(queryCriteria){
 								}	
 								callback1(fields);
 							}
-							// get batting statistics
 							$(".pnl490M table").eq(0).find('tbody tr').each(function(){
 								if(required_match_type.indexOf($(this).find('td:nth-child(1) b').text()) != -1){
-									// res.write($(this).find('td:nth-child(1) b').text() + "\n");
-									// var match_type = $(this).find('td:nth-child(1) b').text();
 									getStatistics($(this),function(fields){
 										batting_match_type_obj[match_type] = fields;
 									})
 										
 								}
 							});
-							// console.log(batting_match_type_obj);
-							// player_info.batting_info = batting_match_type_obj;
-							// get bowling statics
 							$(".pnl490M table").eq(1).find('tbody tr').each(function(){
 								if(required_match_type.indexOf($(this).find('td:nth-child(1) b').text()) != -1){
-									// res.write($(this).find('td:nth-child(1) b').text() + "\n");
 									getBowlingStatistics($(this),function(fields){
-										// console.log(statistic_fields);
 										bowling_match_type_obj[match_type] = fields;	
 									})
 								}
 							});
-
-							
-							// player_info.bowling_info = bowling_match_type_obj;
-							// var bowler_info = $(".pnl490M table").eq(1).html();
-							
-						    // res.write(player_name + "\n"); 
-						    // console.log(player_info + "\n"); 
-						    // res.write(bat_info + "\n"); 
 						    db.Player_Profile.findOne({playerId : playerDoc.playerId},function(err,docs){
 						    	if(docs){
 						    		docs.batting_info = batting_match_type_obj;
@@ -633,7 +713,6 @@ exports.getPlayerStatInfo = function(queryCriteria){
 						    		docs.country = player_country;
 						    		docs.save();
 						    		console.log(playerDoc.playerId);
-						    		// console.log(docs)
 						    		console.log("player stats updated");
 									callback();
 						    	}else{
@@ -641,11 +720,8 @@ exports.getPlayerStatInfo = function(queryCriteria){
 						    		callback()
 						    	}
 						    })
-						    
 						});
-	
 					}
-					
 				},function(asyncerr){
 					if(asyncerr)
 						console.log("error in some where else in series")
@@ -659,88 +735,10 @@ exports.getPlayerStatInfo = function(queryCriteria){
 			} else{
 				console.log("no docs find")
 			}
-
-			
 		}
 	})
-	
-	
 }
-/*var getMaidens = function getMaidens(){
-	db.Player_Profile.find({},{playerId:1,"otherInfo.cricPlayerId":1,"otherInfo.cricPlayerUrl":1},function(playerGetErr, playerDocs){
-		// console.log(playerDocs)
-		async.eachSeries(playerDocs,function(playerDoc,callback){
-			db.Player_Profile.findOne({playerId : playerDoc.playerId},function(err,docs){
-				if(err){
-					console.log(err)
-					callback()
-				}
-				if(docs){
-					var player_name = docs.fullname;
-					if(player_name){
-						player_name.trim();
-						var formData = {
-						  searchkeyword: player_name,
-						};
-						request.post({url:'http://cricketarchive.com/cgi-bin/search2.cgi', formData: formData,followAllRedirects: true}, function(err, httpResponse, html) {
-						  if (err) {
-						    console.error('upload failed:', err);
-						    callback();
-						  }else{
-						  	$ = cheer.load(html);
-						  	var i=0,n=$("#columnLeft table").length;
-						  	$("#columnLeft table").each(function(){
-						  		var match_type_content = $(this).find("tr").eq(0).find("td b").text();
-								if((match_type_content.indexOf("Twenty20") != -1) && (match_type_content.indexOf("Bowling") != -1) && (match_type_content.indexOf("International") == -1)){
-									var maidens = $(this).find("tr").eq(2).find("td").eq(2).text();
-									
-									db.Player_Profile.update({playerId:playerDoc.playerId},{"bowling_info.Twenty20.Maidens" : maidens},function(err1,result){
-										if(err1){
-											console.log(err1)
-											callback()
-										}
-										else{
-											console.log(result);
-											console.log(doc.fullname + "===" + maidens);
-											callback();
-										}
-									});
-									i++;
-									console.log(i + "============" + n)
-									if(i == n)
-									callback()
-								}else{
-									i++;
-									console.log(i + "============" + n)
-									if(i == n)
-									callback()
-								}
-
-						  	})
-						  }
-						  // res.write("body starts here -------------");
-						  
-						});
-					}else{
-						console.log("full name not existed")
-						callback()
-					}
-					
-				}else{
-					console.log("no docs found")
-					callback()
-				}
-			})
-			
-		},function(errr){
-			console.log("maiden updation completed")
-		})
-		
-	})
-		
-	
-}*/
-var getMaidens = function getMaidens(playerIds,maincallback){
+var getMaidens = function (playerIds,maincallback){
 	db.Player_Profile.find({bowling_info:{$exists:true},"bowling_info.Twenty20":{$ne:null},playerId:{$in:playerIds}},function(err,docs){
 		async.eachSeries(docs,function(doc,callback){
 			if(doc.fullname){
@@ -753,7 +751,7 @@ var getMaidens = function getMaidens(playerIds,maincallback){
 						}
 						else{
 							console.log(result);
-							console.log(doc.playerId + "===" + maidens);
+							console.log(doc.fullname + "===" + maidens);
 							callback();
 						}
 					});
@@ -761,17 +759,14 @@ var getMaidens = function getMaidens(playerIds,maincallback){
 			}else{
 				callback()
 			}
-			
 		},function(err2){
 			if(err2)
 				console.log("error")
 			else
 				console.log("completed ")
-			maincallback();
-
+			maincallback()
 		})
 	})
-	
 }
 function getMaidensInfo(player_name,callback){
 	var player_name = player_name;
@@ -785,7 +780,7 @@ function getMaidensInfo(player_name,callback){
 	    callback(0);
 	  }else{
 	  	$ = cheer.load(html);
-	  	var i=0,n=$("#columnLeft table").length;
+	  	var n=$("#columnLeft table").length;var i=0;
 	  	$("#columnLeft table").each(function(){
 	  		var match_type_content = $(this).find("tr").eq(0).find("td b").text();
 			if((match_type_content.indexOf("Twenty20") != -1) && (match_type_content.indexOf("Bowling") != -1) && (match_type_content.indexOf("International") == -1)){
@@ -803,18 +798,18 @@ function getMaidensInfo(player_name,callback){
 	});
 }
 exports.getMaidens = getMaidens;
-exports.getMatchUrl = function(){
+function getMatchUrl(matchcallback){
 	var newDate = new Date();
 	var weakDayArray = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 	var month = ["Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"];
 	console.log(weakDayArray[newDate.getDay()] + " " + month[newDate.getMonth()] + " " + newDate.getDate())
-	newDate = newDate.toISOString();
+	// newDate = newDate.toISOString();
 	var search_url = "http://www.espncricinfo.com/ci/content/match/fixtures/index.html";
 	var playerOtherInfo = {};
 	request(search_url,function(err2, resp, searchResultPage){
 		$ = cheer.load(searchResultPage);
 
-		db.Match_Shedule.find({},function(err,docs){
+		db.Match_Shedule.find({matchId:190543},function(err,docs){
 			if(err){
 				console.log("error with "+ err)
 			}else{
@@ -831,7 +826,7 @@ exports.getMatchUrl = function(){
 							if($(this).attr("id") !== undefined){
 								var id = $(this).attr("id");
 								id++;
-								// console.log($(this).find("p").text().trim() + " == " + checkDate)
+								console.log($(this).find("p").text().trim() + " == " + checkDate)
 								if($(this).find("p").text().trim() == checkDate){
 									console.log("matched == " + checkDate)
 									if($(this).nextUntil("#" + id).length){
@@ -840,6 +835,7 @@ exports.getMatchUrl = function(){
 										$(this).nextUntil("#" + id).each(function(){
 											// console.log($(this).find("td").eq(1).find("b").text().trim())
 											var match_name = $(this).find("td").eq(1).find("b").text().trim();
+											console.log(match_name)
 											if(match_name.indexOf(doc.team1.teamName) != -1 && match_name.indexOf(doc.team1.teamName) != -1){
 												if($(this).find("td").eq(1).find("a").attr("href") !== undefined){
 													var cric_match_id = $(this).find("td").eq(1).find("a").attr("href").split("/").pop().split(".")[0]
@@ -894,7 +890,10 @@ exports.getMatchUrl = function(){
 							// else console.log("++++" + $(this).attr("id") + "------")
 						})
 						// callback()
-					},function(err){
+					},function(err1){
+						if(err1)
+							console.log("error in some function (in match url function)")
+						matchcallback()
 						console.log("completed")
 					})
 					
@@ -906,11 +905,11 @@ exports.getMatchUrl = function(){
 	})
 	
 }
-// team_urls = {};
-exports.getLiveScorecard = function(){
+
+exports.getLiveScorecard = function(maincallback){
 	// getScorecard();
 	var newDate = new Date();
-	newDate = newDate.toISOString()
+	// newDate = newDate.toISOString()
 	console.log(newDate)
 	db.Match_Shedule.find({StartDate:{$lte:newDate},EndDate:{$gte:newDate},"otherInfo":{$exists:true}},{matchId:1,"otherInfo.cricmatchUrl":1,team1:1,team2:1,StartDate:1,EndDate:1},function(err,docs){
 		if(docs){
@@ -921,9 +920,11 @@ exports.getLiveScorecard = function(){
 				match_ids_array.push(docs[i].matchId);
 			console.log(match_ids_array)
 			*/
+			var score_board_array = []
 			async.eachSeries(docs,function(match,callback){
 				// console.log(match)
 				// console.log(match.matchId)
+				client1.sadd("live_mathces",match.matchId);
 				// console.log(match.otherInfo.cricmatchUrl)
 				// var match_url = "http://www.espncricinfo.com/pakistan-v-new-zealand-2014/engine/match/742619.html";
 				var match_url = match.otherInfo.cricmatchUrl;
@@ -945,13 +946,16 @@ exports.getLiveScorecard = function(){
 							console.log(match_full_info.bowling_info.bowler_info[prop])
 						}
 						console.log("test flow")
-						// callback();
+						score_board_array.push(match_full_info);
+						// maincallback(match_full_info)
+						callback();
 					});
 				})
 				// var match_url = match.otherInfo.cricmatchUrl;
 				// console.log(docs)
 			},function(err){
 				console.log("getting live score completed")
+				maincallback(score_board_array)
 			})
 			// var cricmatchUrl = docs
 
@@ -1018,6 +1022,13 @@ function getYahooBatting(bastman,callback){
 			if(playerDoc){
 				batsman_info.playerName = playerDoc.fullname;
 				batsman_info.batsman_comment = bastman.c;
+				if(bastman.c == "Batting"){
+					if(match_full_info.match_batting_player)
+						match_full_info.match_batting_runner = bastman.i
+					else
+						match_full_info.match_batting_player = bastman.i
+				}
+				 
 				batsman_info.batsman_link = "";
 				batsman_info.playerId = bastman.i;
 
@@ -1026,7 +1037,7 @@ function getYahooBatting(bastman,callback){
 				batting_temp_score.Balls = bastman.b;
 				batting_temp_score.fours = bastman.four;
 				batting_temp_score.sixes = bastman.six;
-				batting_temp_score.StrinkeRate = bastman.sr;
+				batting_temp_score.StrikeRate = bastman.sr;
 				
 				batsman_info.batsman_batting_info = batting_temp_score;
 				callback(batsman_info)
@@ -1044,7 +1055,10 @@ function getYahooBowling(bowlers,callback){
 				// console.log("in loop player id ==== " + x)
 				// console.log("in loop player id ==== " + bowlers.i)
 				bowler_info.playerId = bowlers.i;
-				 
+			 	var n = bowlers.o;
+				if(n != parseInt(n)){
+					match_full_info.match_bowler = bowlers.i;
+				}
 				bowling_temp_score.Overs = bowlers.o;
 				bowling_temp_score.Maidens = bowlers.mo
 				bowling_temp_score.Runs = bowlers.r;
@@ -1166,22 +1180,85 @@ function getFullScoreBoard(matchId,match,full_score_url,maincallback){
 		}else{
 			var batting_div = "";
 			console.log($(".batting-table").length + " tables length ")
-			console.log($(".batting-table").last().next().next().html())
+			// console.log($(".batting-table").last().next().next().html())
 			if($(".batting-table").last().next().next().html() === null){
 				console.log(" in if ")
 				batting_div = $(".batting-table").eq($(".batting-table").length-2)
-
 			}
 			else{
 				console.log("in else")
 				batting_div = $(".batting-table").last()
 			}
 	    	getMatchBattingInfo(batting_div,function(){
-	    		maincallback(match_full_info)
+	    		// updateBattingCurrentPlayers(function(){
+	    			maincallback(match_full_info)
+	    		// })
 			})
 		}
 		
 	})
+}
+exports.updateBattingCurrentPlayers = function(match_full_info,callback){
+	var k = 0;nk = match_full_info.length;
+	console.log(nk);
+	function matchFullLoop(k){
+		var j = 0,nj = match_full_info[k].batting_info.batsman_info.length;
+		function battingLoop(j){
+			if(match_full_info[k].batting_info.batsman_info[j].batsman_batting_info.Comment == "not out"){
+				if(match_full_info[k].batting_info.batsman_info[j].playerName.indexOf("*") > -1){
+					match_full_info[k].match_batting_player = match_full_info[k].batting_info.batsman_info[j].playerId;
+					console.log(j+ " == " + nj + " in if player ID ========== " + match_full_info[k].batting_info.batsman_info[j].playerId)
+				}else{
+					match_full_info[k].match_batting_runner = match_full_info[k].batting_info.batsman_info[j].playerId;
+					console.log(j+ " == " + nj + " in else player ID ========== " + match_full_info[k].batting_info.batsman_info[j].playerId)
+				}
+				j++;
+				// console.log(j + " --- " + nj)
+				if(j != nj)
+					battingLoop(j)
+				if(j == nj){
+					updateBowlerCurrentPlayer(match_full_info,k,function(){
+						k++;
+						// console.log(k + " ***- " + nk)
+						if(k != nk)
+							matchFullLoop(k)
+						if(k == nk)
+							callback()
+					})
+				}
+			}else{
+				j++;
+				// console.log(j + " ---- " + nj)
+				if(j != nj)
+					battingLoop(j)
+				if(j == nj){
+					updateBowlerCurrentPlayer(match_full_info,k,function(){
+						k++;
+						// console.log(k + " ***- " + nk)
+						if(k != nk)
+							matchFullLoop(k)
+						if(k == nk)
+							callback()
+					})
+				}
+			}
+		}
+		battingLoop(j)
+	}
+	matchFullLoop(k)
+	
+}
+function updateBowlerCurrentPlayer(match_full_info,k,callback){
+	var j = 0, nj = match_full_info[k].bowling_info.bowler_info.length;
+	for(var i=0;i<match_full_info[k].bowling_info.bowler_info.length;i++){
+		var n = match_full_info[k].bowling_info.bowler_info[i].bowler_bowling_info.Overs;
+		if(n != parseInt(n)){
+			match_full_info[k].match_bowler = match_full_info[k].bowling_info.bowler_info[i].playerId;
+		}
+		// console.log(i + " === " + nj)
+		if(i == nj-1)
+			callback()
+	}
 }
 function getMatchBattingInfo(batting_content,callback){
 	/*var batting_player_info = {}
@@ -1252,72 +1329,124 @@ function getMatchBattingInfo(batting_content,callback){
 			match_full_info.batting_info = {};
 			match_full_info.batting_info.teamId = teamId;
 			var batsman_player_info = [];
+			var j=0;n=batting_content.find("tr").length;
 			batting_content.find("tr").each(function(){
 				if($(this).hasClass("tr-heading")){
+					j++;
 					return
 				}else if($(this).hasClass("dismissal-detail")){
+					j++;
 					return;
 				}else if($(this).hasClass("extra-wrap")){
 					match_full_info.extras.comment = $(this).find('td:nth-child(3)').text();
 					match_full_info.extras.Runs = $(this).find('td:nth-child(4)').text();
+					j++;
 				}else if($(this).hasClass("total-wrap")){
 					match_full_info.total.comment = $(this).find('td:nth-child(3)').text();
 					match_full_info.total.Runs = $(this).find('td:nth-child(4) b').text();
 					match_full_info.total.RunRate = $(this).find('td:nth-child(5)').text();
+					j++;
 				}else{
-					var batting_temp_score = {},batsman_info = {};bc = 4;
-					var batsman_name = $(this).find('td:nth-child(2) a').text();
-					batsman_info.playerName = batsman_name;
-					batsman_info.batsman_comment = $(this).find('td:nth-child(3)').text();
-					batsman_info.batsman_link = $(this).find('td:nth-child(2) a').attr("href");
+					var tr_info = $(this);
 					var cricPlayerId = $(this).find('td:nth-child(2) a').attr("href").split("/").pop().split(".")[0];
 					db.Player_Profile.findOne({"otherInfo.cricPlayerId":cricPlayerId},{playerId:1,_id:0},function(err,playerDoc){
 						if(playerDoc){
+							var batting_temp_score = {},batsman_info = {};bc = 3;
+							var batsman_name = tr_info.find('td:nth-child(2) a').text();
+							batsman_info.playerName = batsman_name;
+							batsman_info.batsman_comment = tr_info.find('td:nth-child(3)').text();
+							batsman_info.batsman_link = tr_info.find('td:nth-child(2) a').attr("href");
+							
 							batsman_info.playerId = playerDoc.playerId;
+							console.log(cricPlayerId + " ================= " + playerDoc.playerId)
+							for(var b_info in batting_score){
+								batting_temp_score[b_info] = tr_info.find('td:nth-child('+ bc +')').text().trim();
+								bc++;
+							}
+							console.log(batting_temp_score)
+							batsman_info.batsman_batting_info = batting_temp_score;
+							batsman_player_info.push(batsman_info);
+							j++;
+							console.log(j + " ***************** " + n)
+							if(j == n){
+								match_full_info.batting_info.batsman_info = batsman_player_info;
+								console.log(country + "===" + match_counrties[1].trim())
+								if(country === match_counrties[1].trim()){
+									console.log("in if condition ")
+									country_name = match_counrties[0].trim()
+									db.Team_Info.findOne({teamName : country_name},{teamId : 1,_id:0},function(err,teamDoc){
+										if(teamDoc){
+											oppTeamId = teamDoc.teamId;
+											console.log(country_name)
+											getBowlingInfo(oppTeamId,heading,batting_content.next().next(),function(){
+												callback();
+											})
+										}else{
+											console.log("first opp team not found *******************")
+											callback()
+										}
+									})
+								}
+								else{
+									country_name = match_counrties[1].trim()
+									db.Team_Info.findOne({teamName : country_name},{teamId : 1,_id:0},function(err,teamDoc){
+										if(teamDoc){
+											oppTeamId = teamDoc.teamId;
+											console.log(country_name)
+											getBowlingInfo(oppTeamId,heading,batting_content.next().next(),function(){
+												callback();
+											})
+										}else{
+											console.log("opp team not found *******************")
+											callback()
+										}
+									})
+								}
+							}
+						}else{
+							j++;
+							console.log(" in else " + j + " ***************** " + n)
+							if(j == n){
+								match_full_info.batting_info.batsman_info = batsman_player_info;
+								console.log(country + "===" + match_counrties[1].trim())
+								if(country === match_counrties[1].trim()){
+									console.log("in if condition ")
+									country_name = match_counrties[0].trim()
+									db.Team_Info.findOne({teamName : country_name},{teamId : 1,_id:0},function(err,teamDoc){
+										if(teamDoc){
+											oppTeamId = teamDoc.teamId;
+											console.log(country_name)
+											getBowlingInfo(oppTeamId,heading,batting_content.next().next(),function(){
+												callback();
+											})
+										}else{
+											console.log("first opp team not found *******************")
+											callback()
+										}
+									})
+								}
+								else{
+									country_name = match_counrties[1].trim()
+									db.Team_Info.findOne({teamName : country_name},{teamId : 1,_id:0},function(err,teamDoc){
+										if(teamDoc){
+											oppTeamId = teamDoc.teamId;
+											console.log(country_name)
+											getBowlingInfo(oppTeamId,heading,batting_content.next().next(),function(){
+												callback();
+											})
+										}else{
+											console.log("opp team not found *******************")
+											callback()
+										}
+									})
+								}
+							}
 						}
 					})
-					for(var b_info in batting_score){
-						batting_temp_score[b_info] = $(this).find('td:nth-child('+ bc +')').text();
-						bc++;
-					}
-					console.log(batting_temp_score)
-					batsman_info.batsman_batting_info = batting_temp_score;
-					batsman_player_info.push(batsman_info);
+					
 				}
 			})
-			match_full_info.batting_info.batsman_info = batsman_player_info;
-			console.log(country + "===" + match_counrties[1].trim())
-			if(country === match_counrties[1].trim()){
-				console.log("in if condition ")
-				country_name = match_counrties[0].trim()
-				db.Team_Info.findOne({teamName : country_name},{teamId : 1,_id:0},function(err,teamDoc){
-					if(teamDoc){
-						oppTeamId = teamDoc.teamId;
-						console.log(country_name)
-						getBowlingInfo(oppTeamId,heading,batting_content.next().next(),function(){
-							callback();
-						})
-					}else{
-						console.log("first opp team not found *******************")
-						callback()
-					}
-				})
-			}
-			else{
-				country_name = match_counrties[1].trim()
-				db.Team_Info.findOne({teamName : country_name},{teamId : 1,_id:0},function(err,teamDoc){
-					if(teamDoc){
-						oppTeamId = teamDoc.teamId;
-						console.log(country_name)
-						getBowlingInfo(oppTeamId,heading,batting_content.next().next(),function(){
-							callback();
-						})
-					}else{
-						console.log("opp team not found *******************")
-						callback()
-					}
-				})
-			}
+			
 			
 		}else{
 			console.log("team not found ************")
@@ -1331,441 +1460,158 @@ function getBowlingInfo(oppTeamId,heading,bowling_table,callback){
 	// console.log(bowling_table.html())
 	match_full_info.bowling_info.teamId = oppTeamId;
 	var bowling_player_info = [];
+	var j=0,n=bowling_table.find("tr").length;
 	bowling_table.find("tr").each(function(){
 
 		if($(this).hasClass("tr-heading")){
+			j++;
 			return
 		}else if($(this).hasClass("dismissal-detail")){
+			j++;
 			return;
 		}else{
-			var bowling_temp_score = {},bowler_info = {};bc = 3;
-			var bowller_name = $(this).find('td:nth-child(2) a').text();
-			bowler_info.playerName = bowller_name;
+			var tr_content = $(this);
 			var cricPlayerId = $(this).find('td:nth-child(2) a').attr("href").split("/").pop().split(".")[0];
 			db.Player_Profile.findOne({"otherInfo.cricPlayerId":cricPlayerId},{playerId:1,_id:0},function(err,playerDoc){
 				if(playerDoc){
+					var bowling_temp_score = {},bowler_info = {};bc = 3;
 					bowler_info.playerId = playerDoc.playerId;
+					var bowller_name = tr_content.find('td:nth-child(2) a').text();
+					bowler_info.playerName = bowller_name;
+					for(var b_info in bowling_stat){
+						bowling_temp_score[b_info] = tr_content.find('td:nth-child('+ bc +')').text();
+						bc++;
+					}
+					bowler_info.bowler_bowling_info = bowling_temp_score;
+					bowling_player_info.push(bowler_info)
+					j++;
+					console.log("bowling " + j + " ********************** " + n)
+					if(j == n){
+						match_full_info.bowling_info.bowler_info = bowling_player_info;
+						callback()
+					}
+				}else{
+					j++
+					if(j == n){
+						match_full_info.bowling_info.bowler_info = bowling_player_info;
+						callback()
+					}
 				}
 			})
-			for(var b_info in bowling_stat){
-				bowling_temp_score[b_info] = $(this).find('td:nth-child('+ bc +')').text();
-				bc++;
-			}
-			bowler_info.bowler_bowling_info = bowling_temp_score;
-			bowling_player_info.push(bowler_info)
+			
 		}
 	})
 	// console.log(match_full_info.countries[country_name]);
-	match_full_info.bowling_info.bowler_info = bowling_player_info;
-	callback()
-}
-
-
-
-exports.getNews = function(){
-	var newsId_array = [];
-	var upcoming_matches_url = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.news%20%20where%20region%3D%22%22&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
-	request(upcoming_matches_url,function(err, resp, newsContent){
-		var news_object = JSON.parse(newsContent);
-		var news_array = news_object.query.results.item;
-		async.eachSeries(news_array,function(news,callback){
-			newsId_array.push(news.newsid)
-			db.News.findOne({newsId:news.newsid},function(err1,docs){
-				if(docs){
-					console.log(" news already existed")
-					callback();
-				}else{
-					var news_item = {};
-					news_item.link = news.link;
-					news_item.pubDate = news.pubDate;
-					news_item.title = news.title;
-					news_item.description = news.description;
-					news_item.newsId = news.newsid;
-					var news_item_object = new db.News(news_item);
-				    news_item_object.save(function(err, recs){
-				    	if(err)
-				    		console.log("error in saving match")
-				    	else{
-				    		console.log("news saved sussfully")
-				    		callback();
-				    	}
-				    });
-				}
-			})
-			
-		},function(err){
-			console.log("news updated ....")
-			updateNewsContent(newsId_array)
-		})		
-	})
-}
-function updateNewsContent(news_array){
-	async.eachSeries(news_array,function(news_item,callback){
-		db.News.findOne({newsId:news_item},function(err1,docs){
-			if(docs){
-				var news_link = docs.link;
-				console.log(news_link)
-				request(news_link,function(err, resp, nContent){
-					$ = cheer.load(nContent);
-					$("#mediaarticlebody .bd p").last().html("")
-					var news_content = $("#mediaarticlebody .bd").html()
-					docs.content = news_content;
-					console.log(news_content)
-					docs.save();
-					callback()
-
-				})
-			}else{
-				callback()
-			}
-		})
-	},function(err){
-		console.log("news content updated")
-	})
-}
-var match_com = {}
-exports.getCommentary = function(){
-	var newDate = new Date();var match_com = {}
-	db.Match_Shedule.find({StartDate:{$lte:newDate},"otherInfo":{$exists:true}},{matchId:1,"otherInfo.cricmatchUrl":1,team1:1,team2:1},function(err,docs){
-		if(docs){
-			async.eachSeries(docs,function(match,callback){
-				match_com = {}
-				var match_id = 11985;
-				var commentary_url = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.commentary%20where%20match_id%3D" + match_id + "&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
-				request(commentary_url,function(err, resp, cContent){
-					var c_object = JSON.parse(cContent);
-					var c_array = c_object.query.results.Over;
-					match_com.matchId = match.matchId;
-					match_com.over = []
-					for(var i=0;i<c_array.length;getYahooCommentary(i,c_array.length,c_array[i],function(commentary){
-							match_com.over.push(commentary);
-						}),i++)
-					{
-						
-					}
-					console.log(match_com)
-					for(var abc=0;abc<match_com.over.length;abc++){
-						console.log(match_com.over[abc].balls)
-						console.log("-----------------------")
-					}
-
-					// c_array.each()
-					/*async.eachSeries(news_array,function(news,callback){
-						db.News.findOne({newsId:news.newsid},function(err1,docs){
-							if(docs){
-								console.log(" news already existed")
-								callback();
-							}else{
-								var news_item = {};
-								news_item.link = news.link;
-								news_item.pubDate = news.pubDate;
-								news_item.title = news.title;
-								news_item.description = news.description;
-								news_item.newsId = news.newsid;
-								var news_item_object = new db.News(news_item);
-							    news_item_object.save(function(err, recs){
-							    	if(err)
-							    		console.log("error in saving match")
-							    	else{
-							    		console.log("news saved sussfully")
-							    		callback();
-							    	}
-							    });
-							}
-						})
-						
-					},function(err){
-						console.log("news updated ....")
-					})*/		
-				})
-			},function(err){
-
-			})
-			
-		}
-	})
-}
-function getYahooCommentary(i,c_length,c_array,callback){
-	if(i == c_length){
-		callback()
-	}else{
-		var ball_info = [],over_info = {};
-		var over_num = c_array.num;
-		over_info.num = over_num;
-		var loop_length = c_array.Ball.length;
-		// console.log(loop_length)
-		for(var j=0;j<loop_length;getYahooCommentaryBallInfo(j,loop_length,c_array.Ball[j],function(ball_com){
-			ball_info.push(ball_com)
-			if(j == c_array.Ball.length-1){
-				over_info.balls = ball_info;
-				callback(over_info)
-			}
-		}),j++){
-			// console.log(c_array.Ball[j])
-			// getYahooCommentaryBallInfo
-			
-		}
-	}
-	
-	// callback()
-}
-function getYahooCommentaryBallInfo(j,loop_length,ball,calb){
-	// console.log(ball)
-	if(j == loop_length)
-		calb()
-	else{
-		ball_com = {};
-		ball_com.type = ball.type;
-		ball_com.num = ball.n;
-		ball_com.comment = ball.c;
-		calb(ball_com)
-	}
 	
 }
-exports.updatePlayerPic = function(){
-	db.Player_Profile.find({},{playerId:1,_id:0},function(err,docs){
-		if(docs){
-			docs.forEach(function(doc){
-				if(doc){
-					var player_url = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.player.profile%20where%20player_id%3D" + doc.playerId + "&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
-					request(player_url,function(err,resp,playerContent){
-						var player_object = JSON.parse(playerContent);
-						var pic_url = player_object.query.results.PlayerProfile.PersonalDetails.PlayerThumbImgName;
-						
-						request.head(pic_url, function(err, res, body){
 
-						    console.log('content-type:', res.headers['content-type']);
-						    console.log('content-length:', res.headers['content-length']);
-
-						    var r = request(pic_url).pipe(fs.createWriteStream("views/images/" + doc.playerId + ".jpg"));
-						    // r.on('close', callback);
-						    db.Player_Profile.update({playerId:doc.playerId},{$set:{pic_url : pic_url,image : "views/images/" + doc.playerId + ".jpg"}},function(err,result){
-						    	console.log(result)
-						    })
-						    /*doc.pic_url = pic_url;
-						    doc.image = "views/images/" + doc.playerId + ".jpg";
-							doc.save()*/
-							console.log(doc)
-					  	});
-						
-						// doc.pic_url = pic_url;
-						// doc.save()
-						// console.log(doc)
-
-					})
-				}
-				
-			})
-			
-		}
-	})
-}
-exports.getStats = function(playerId,callback){
-	console.log(playerId)
-	db.Player_Profile.find({playerId:playerId},function(err,docs){
-		if(err){
-			console.log(err)
-		}
-		if(docs){
-			var stat_info = docs;
-			callback(stat_info)
-		}
-	})
-}
-exports.uPOtherInfo = function(msg,callback){
-	var playerId = msg.pid;
-	var playerUrl = msg.purl;
-	var playerOtherInfo = {};
-	cricPlayerId = playerUrl.split("/").pop().substring(0,playerUrl.split("/").pop().indexOf("."))
-	playerOtherInfo.cricPlayerId = cricPlayerId;
-	playerOtherInfo.cricPlayerUrl = playerUrl;
-	playerOtherInfo.cricAPlayerUrl = "";
-	console.log(cricPlayerId)
-	db.Player_Profile.update({playerId:playerId},{$set : {otherInfo : playerOtherInfo}},function(err3,result){
-		if(err3){
-			console.log("error in updation")
-			callback(playerId)
-		}
-		else{
-			console.log(result)
-			callback(playerId)
-		}
-	})
-}
-exports.playerApproved = function(pid,app_status,callback){
-	db.Player_Profile.update({playerId:pid},{$set : {approved : app_status}},function(err3,result){
-		if(err3){
-			console.log("error in updation")
-			callback()
-		}
-		else{
-			console.log(result)
-			callback()
-		}
-	})
-}
-exports.updateMatchSheduleDate = function(){
-	db.Match_Shedule.find({StartDate:{$type:2}},function(err,docs){
-		if(docs){
-			console.log(docs.length)
-			for(var i=0;i<docs.length;i++){
+exports.getFantasyPoints = function(matchId,callback){
+	var fps = [];
+	getFPPlayers(matchId,function(players){
+		getFantasyIndex(matchId,function(fantasyIndex){
+			var ic = 0,nic = players.length;
+			for(var i=0;i<players.length;i++){
 				(function(i){
-					docs[i].StartDate = new Date(docs[i].StartDate);
-					docs[i].EndDate = new Date(docs[i].EndDate);
-					docs[i].save();
+					var playerId = players[i];
+					var pfso = {};
+					pfso.playerId = playerId;
+					getPlayerName(playerId,function(playerName){
+						pfso.playerName = playerName;
+						calFantasyPoints(matchId,playerId,fantasyIndex,function(pts){
+							// playerWisePoints["matchId_" + match]["playerId_" + playerId] = pts;
+							console.log("playerId " + playerId + " points " + pts)
+							pfso.points = pts;
+							fps.push(pfso);
+							ic++
+							if(ic == nic)
+								callback(fps)
+						})
+					})
+					
 				})(i)
 			}
-		}
-		
-	})
-}
-// evaluate player stats
-exports.getPlayersCountryList = function(callback){
-	db.Player_Profile.distinct("country",{},function(err,docs){
-		if(err)
-			console.log("in err " + err)
-		if(docs){
-			callback(docs)
-		}
-		
-	})
-}
-exports.getPlayersList = function(country,callback){
-	db.Player_Profile.find({country:country,$or : [{approved:0},{approved:{$exists:false}}]},{playerId:1,fullname:1,_id:0,country:1},{sort:'fullname'},function(err,docs){
-		if(err)
-			console.log("in err " + err)
-		if(docs){
-			callback(docs)
-		}
-		
-	})
-}
-exports.playerUpdationValues = function(msg,callback){
-	var playerId = msg.pid;
-	var playerUrl = msg.purl;
-	var playerOtherInfo = {};
-	cricPlayerId = playerUrl.split("/").pop().substring(0,playerUrl.split("/").pop().indexOf("."))
-	playerOtherInfo.cricPlayerId = cricPlayerId;
-	playerOtherInfo.cricPlayerUrl = playerUrl;
-	db.Player_Profile_Updation.findOne({playerId:playerId},function(err,docs){
-		if(err)
-			console.log("in err " + err)
-		else{
-			if(docs){
-				docs.otherInfo = playerOtherInfo;
-				docs.save()
-				callback(docs)
-			}else{
-				var playerUpdObj = {}
-				playerUpdObj.playerId = playerId;
-				playerUpdObj.otherInfo = playerOtherInfo;
-				playerUpdObj.updated = 0;
-				var matchPlayerInfo = new db.Player_Profile_Updation(playerUpdObj)
-				matchPlayerInfo.save(function(err,recs){
-					if(err)
-						console.log("error in inserting match players")
-					else{
-						console.log(recs)
-						console.log("match player info saved")
-						callback()
-					}
-				})
-			}
-		}
-		
-	})
-}
-
-function getMatchFantasyPointsUpdates(){
-	var matchId = 189297,mtype = "",pts = 0;
-	var upcoming_matches_url = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20cricket.scorecard.summary%20where%20match_id%3D" + matchId + "&format=json&diagnostics=true&env=store%3A%2F%2F0TxIGQMQbObzvU4Apia0V0&callback="
-	request(upcoming_matches_url,function(err, resp, matchContent){
-		var matches_object = JSON.parse(matchContent);
-		var mom_id = matches_object.query.results.Scorecard.result.mom.i;
-		if(mtype == "odi") 
-			pts = 50
-		else if(mtype == "test")
-			pts = 100
-		else if(mtype == "twenty20" || mtype == "t20")
-			pts = 25
-		client1.set("fantasyPoints_" + matchId + "_" + mom_id + "_mom",pts)
-		
-		/*var mos_id = matches_object.query.results.Scorecard.result.mos.i;
-		if(mtype == "odi") 
-			pts = 300
-		else if(mtype == "test")
-			pts = 500
-		else if(mtype == "twenty20" || mtype == "t20")
-			pts = 200
-		client1.set("fantasyPoints_" + matchId + "_" + mos_id + "_mos",pts)*/
-	})
-}
-
-// level 2
-
-exports.getPlayersCountryListLevel2 = function(callback){
-	db.Player_Profile_Updation.find({},{playerId:1,_id:0},function(err,docs){
-		if(err){
-			console.log("error in getting players from profile updation " + err)
-		}else{
-			if(docs){
-				console.log(docs.length)
-				playerArray = [];
-				for(var i=0;i<docs.length;i++)
-					playerArray.push(docs[i].playerId)
-				db.Player_Profile.distinct("country",{playerId:{$in:playerArray}},function(err,cdocs){
-					if(err)
-						console.log("in err " + err)
-					if(cdocs){
-						callback(cdocs)
-					}
-				})
-			}
-		}
+		})
+		// console.log(players)
 	})
 	
 }
-exports.getPlayersListLevel2 = function(country,callback){
-	db.Player_Profile.find({country:country,approved:2},{playerId:1,fullname:1,_id:0,country:1},{sort:'fullname'},function(err,docs){
+function getPlayerName(playerId,callback){
+  db.Player_Profile.findOne({playerId:playerId},{fullname:1,_id:0},function(err,playerName){
+    if(err){
+      console.log("error in getting player profile in getPlayerName function" + err)
+    }else{
+      if(playerName){
+        callback(playerName.fullname)
+      }
+    }
+  })
+}
+function getFantasyIndex(matchId,callback){
+	client1.get("match_day_" + matchId,function(err,mresult){
 		if(err)
-			console.log("in err " + err)
-		if(docs){
-			callback(docs)
-		}
-		
-	})
-}
-exports.getUpdatedOtherInfoLevel2 = function(playerId,callback){
-	db.Player_Profile_Updation.findOne({playerId:playerId},function(err,docs){
-		if(err){
-			console.log("error in getting player info from profile updation " + err)
-		}else{
-			console.log(docs)
-			callback(docs)
+			console.log("redis get error " + err)
+		else{
+			var fantasyIndex = mresult;
+			callback(fantasyIndex);
 		}
 	})
 }
-exports.updatePlayerOtherInfoConfirm = function(playerId,callback){
-	db.Player_Profile_Updation.findOne({playerId:playerId},{otherInfo:1},function(err,docs){
-		if(err){
-			console.log("error in getting player info from profile updation " + err)
-		}else{
-			console.log(docs)
-			db.Player_Profile.update({playerId:playerId},{$set:{otherInfo:docs.otherInfo,approved:3}},function(err,update){
-				if(err)
-					console.log("error in updating ..")
-				else{
-					console.log(update)
-					db.Player_Profile_Updation.update({playerId:playerId},{updated:1},function(er,up){
-
-					})
-					callback(playerId)
+function getFPPlayers(matchId,callback){
+	var players = [];
+	client1.smembers("squad_" + matchId + "_teams",function(err,teams){
+      	if(err){
+      		console.log("error in getting squad teams " + err)
+      	}
+        else
+        {
+          	if(teams)
+          	{
+          		var i=0,ni = teams.length;
+          		function teamsLoop(i){
+          			client1.smembers("squad_" + matchId + "_team" + teams[i],function(err,playersList){
+				      	if(err){
+				      		console.log("error in getting squad players from teams " + err)
+				      	}
+				        else
+				        {
+				          	if(playersList)
+				          		players = players.concat(playersList);
+				          	i++;
+		          			if(i != ni)
+		          				teamsLoop(i)
+		          			if(i == ni)
+		          				callback(players)
+				      }
+				  })
+          		}
+          		teamsLoop(i)
+      		}else{
+      			callback()
+      		}
+  		}
+	})
+}
+function calFantasyPoints(matchId,playerId,fantasyIndex,callback){
+	var fic = 0,nfic = fantasyIndex,pts=0;
+	for(var fi=fantasyIndex;fi>=0;fi--){
+		(function(fi){
+			client1.get("fantasyPoints_" + matchId + "_" + playerId + "_day_" + fantasyIndex,function(er,points){
+				if(er){
+					console.log("error in getting fantasy points");
+				}else{
+					if(points === null){
+						callback(0);
+					}else{
+						pts += parseInt(points);
+						nfic--;
+						if(fic == nfic)
+							callback(pts)
+					}
+					
 				}
 
+				
 			})
-			
-
-		}
-	})
+		})(fi)
+	}
 }
-

@@ -9,7 +9,7 @@ var server = http.createServer(app)
 var chat_room = require('socket.io')(server);
 var redis = require('redis');
 var client1 = redis.createClient();
-server.listen(3004);
+// server.listen(3004);
 // app.use("views", express.static(__dirname + '/views'));
 app.use("/scripts", express.static(__dirname + '/scripts/js'));
 app.use("/images", express.static(__dirname + '/views/images'));
@@ -20,7 +20,7 @@ app.get("/sub/:chennel_name",function(req,res){
 })
 app.get("/",function(req,res){
 	res.render("index.html");})
-setTimeout(matchBefore30Mins,0)
+/*setTimeout(matchBefore30Mins,0)
 
 setInterval(matchBefore30Mins,1800000)
 function matchBefore30Mins(){
@@ -37,4 +37,11 @@ function matchUpdates(){
 setInterval(matchCompletionUpdates,10000)
 function matchCompletionUpdates(){
 	notificationHelper.matchCompletionUpdates();
+}*/
+// notificationHelper.updateMatchFinalSquad(190482)
+setInterval(function(){
+	matchCompletion();
+},10000)
+function matchCompletion(){
+	notificationHelper.matchCompletionUpdates()
 }

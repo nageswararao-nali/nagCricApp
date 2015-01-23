@@ -22,7 +22,7 @@
 		var locc = loc[4];
 		// console.log(locc);
 		// console.log("---" + loc + "---")
-		var socket = io.connect("http://localhost:3003");
+		var socket = io.connect("54.169.218.153:3003");
 		// socket.emit("sub","");
 		/*$("#form_sub").submit(function(e){
 			e.preventDefault();
@@ -36,10 +36,15 @@
 		socket.on("chat",function(msg){
 				$("#test").append(msg.msg);
 			})*/
-socket.emit("getFantasyPoints",189018);
+// socket.emit("getFantasyPoints",189018);
 socket.on("fantasyPoints",function(fPoints){
 	console.log("welcome home")
 	console.log(fPoints)
+	var li = "";
+	for(var i=0;i<fPoints.length;i++){
+		li = li + "<li>" + fPoints[i].playerName + " --> " + fPoints[i].points + "</li>";
+	}
+	$("#fp").html(li);
 })
 		socket.on("scoreboard",function(scor_info){
 			/*for(var prop in scor_info){
@@ -53,7 +58,7 @@ socket.on("fantasyPoints",function(fPoints){
 			var tr = "<tr><td colspan=2>Batting</td><td>R</td><td>M</td><td>B</td><td>4s</td><td>6s</td><td>SR</td></tr>";
 			for(var prop in scor_info.batting_info.batsman_info){
 				console.log(prop + " ==== " + scor_info.batting_info.batsman_info[prop])
-				tr = tr + '<tr><td>' + scor_info.batting_info.batsman_info[prop].playerName + '</td><td>' + scor_info.batting_info.batsman_info[prop].batsman_comment + '</td>'
+				tr = tr + '<tr><td>' + scor_info.batting_info.batsman_info[prop].playerName + '</td>';
 				for(var lprop in scor_info.batting_info.batsman_info[prop].batsman_batting_info){
 					console.log(lprop + " ====== " + scor_info.batting_info.batsman_info[prop].batsman_batting_info[lprop])
 					tr = tr + '<td>' +  scor_info.batting_info.batsman_info[prop].batsman_batting_info[lprop] + '</td>';
@@ -96,5 +101,6 @@ socket.on("fantasyPoints",function(fPoints){
 			<input type="submit" name="chat_submit" value="Publish Post" id="chat_submit">
 		</form>
  -->
+ 	<div id="fp"></div>
 	</body>
 </html>
